@@ -6,7 +6,7 @@ COMMON_DIR = ../common
 DATABASE_DIR = ../database
 
 # Lista de arquivos fonte
-SOURCES = client.cpp client_interface.cpp message.cpp session.cpp
+SOURCES = client.cpp client_interface.cpp session.cpp
 COMMON_SOURCES = $(COMMON_DIR)/data.cpp $(COMMON_DIR)/utils.cpp $(COMMON_DIR)/serialize.cpp
 DATABASE_SOURCES = $(DATABASE_DIR)/database.cpp
 OBJECTS = $(SOURCES:%.cpp=$(BIN_DIR)/%.o) $(COMMON_SOURCES:$(COMMON_DIR)/%.cpp=$(BIN_DIR)/%.o) $(DATABASE_SOURCES:$(DATABASE_DIR)/%.cpp=$(BIN_DIR)/%.o)

@@ -366,6 +366,7 @@ void UDPServer::sendBufferedMessages(int userId) {
                         "\" to user @"<< usersList.getUsername(userId) << "(id " << std::to_string(userId) << ")" << 
                         " from user @" << message.sender.username << " (id " << message.sender.userId << ")" << std::endl;
                     std::string str(
+                        std::to_string(message.timestamp) + ',' +
                         message.sender.username + ',' + 
                         std::to_string(message.sender.userId) + ',' +
                         message.content
