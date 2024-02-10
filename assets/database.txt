@@ -1,0 +1,12 @@
+Luis;2,6,;1
+Gabriel Machado;;3
+Dick;6,;5
+igor;;6
+ClienteA;;7
+GabrielMachado;2,6,;4
+Pedro;1,;2
+CLienteC;;8
+ClienteD;7,11,;9
+CLienteB;;10
+ClienteB;7,;11
+ClienteC;7,11,;12
