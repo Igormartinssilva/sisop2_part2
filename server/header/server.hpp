@@ -15,19 +15,23 @@
 #include <condition_variable>
 #include <cstring>
 #include <arpa/inet.h>
+#include <ifaddrs.h>
 #include "../../common/header/data.hpp"
 #include "../../assets/constraints.hpp"
 #include "../../database/database.hpp"
 #include "../../common/header/serialize.hpp"
+//#include "election.hpp"
 
 struct PacketInfo {
     twt::Packet packet;
     sockaddr_in clientAddress;
 };
 
+//class Election;
+
 class UDPServer {
 public:
-    UDPServer(int port, int mainServerPort, std::string mainServerIP);
+    UDPServer(int port, int mainServerPort, std::string mainServerIP, int serverId);
     UDPServer(int port);
     ~UDPServer();
     void start();
@@ -55,7 +59,7 @@ private:
     bool isMainServerUp;
     bool waitForAck();
     void sendPacketWithRetransmission(const sockaddr_in& clientAddress, std::string returnMassage);
-
+    //Election election;
 
     std::unordered_map<uint32_t, std::unordered_map<uint16_t, uint16_t>> lastSequenceNumber;
 
@@ -79,8 +83,13 @@ private:
     void broadcastMessage(int receiverId);
     bool UserConnected(int userId);
     void sendPacket();
+    std::string getIPAddress();
     std::queue<std::string> serializeDatabase();
     void processBackup(const std::string& input);
+    void processElectionResult(const std::string& input);
+    void processElectionRequest(const std::string& input, const sockaddr_in& clientaddr);
+    void processElectionRequestAck(const std::string &packet, const sockaddr_in& clientaddr);
+    std::string calcID(sockaddr_in Address);
 
     std::vector<sockaddr_in> otherServers; 
     int serverSocket;
@@ -89,9 +98,13 @@ private:
     std::queue<std::pair<const sockaddr_in&, const std::string>> sendBuffer;
     std::string mainServerIP;
     int mainServerPort;
+    int serverId;
     
     void electionMainServer(); 
-    
+    std::vector<std::pair<int, std::string>> getHigherIds();
+    std::pair<int, std::string> startElection(std::vector<std::pair<int, std::string>> serversToSend);
+    void sendElectionResult(int port, std::string ip);
+
     std::deque<PacketInfo> packetBuffer;
     std::unordered_map<int, std::queue<twt::Message>> userMessageBuffer, msgToSendBuffer;  // User ID -> Queue of stored messages
     std::queue<twt::Message> messageBuffer; // Messages of the tr

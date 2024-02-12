@@ -39,3 +39,15 @@ void pressEnterToContinue() {
     std::cout << YELLOW << "\n[Press Enter to Continue]" << RESET;
     std::cin.ignore(); // Wait for Enter key press
 }
+
+std::vector<std::string> splitString(const std::string& input) {
+    std::vector<std::string> result;
+    std::istringstream iss(input);
+    std::string token;
+    
+    while (std::getline(iss, token, ';')) {
+        result.push_back(token);
+    }
+    
+    return result;
+}

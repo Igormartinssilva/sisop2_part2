@@ -18,11 +18,12 @@
 
 class Server {
 public:
-    Server(int id, const std::string& ip, bool alive = true) : id(id), ip(ip), alive(alive) {}
+    Server(int id, int port, const std::string& ip, bool alive = true) : id(id), port(port), ip(ip), alive(alive) {}
 
     // Métodos de acesso
     int getId() const { return id; }
     void setId(int newId) { id = newId; }
+    int getPort() const { return port; }
 
     const std::string& getIp() const { return ip; }
     void setIp(const std::string& newIp) { ip = newIp; }
@@ -47,18 +48,21 @@ private:
     bool alive;
 };
 
-class Election {
-public:
-    Election(int serverId);
-    ~Election();
-    
-    void readServerListFromFile(const std::string& filename);
-    void startElection();
-    void notifyElectionResult(bool elected);
 
-private:
-    int serverId;
-    std::vector<Server> servers;
+class Election {
+    public:
+        Election();
+        Election(int serverId);
+        ~Election();
+        
+        void readServerListFromFile();
+        std::vector<std::pair<int, std::string>> startElection();
+        void notifyElectionResult(bool elected);
+
+    private:
+        int serverId;
+        std::vector<Server> servers;
 };
+
 
 #endif // ELECTION_HPP

@@ -9,9 +9,11 @@
 std::unordered_map<int, std::vector<sockaddr_in>> connectedUsers;  // User ID -> Set of connected sessions
 bool isMainServer;
 
-UDPServer::UDPServer(int port, int mainServerPort_param, std::string mainServerIP_param)
+UDPServer::UDPServer(int port, int mainServerPort_param, std::string mainServerIP_param, int serverId)
 {
     serverSocket = socket(AF_INET, SOCK_DGRAM, 0);
+    this->serverId = serverId;
+    //election = Election(serverId);
 
     if (serverSocket < 0)
     {
@@ -683,7 +685,7 @@ void UDPServer::start_replication()
     running = true;
     std::cout << "Server Replication listening on port " << myServerPort << "...\n";
     std::thread PingThread(&UDPServer::Ping, this);
-    std::thread ReceiveThread(&UDPServer::handlePackets, this);
+    std::thread ReceiveThread(&UDPServer::handlePackets, this); // ????
     std::thread ConsumeBufferThread(&UDPServer::processPacket_server, this);
     std::thread sendBackupPacketThread(&UDPServer::sendBackupPacket, this);
     std::thread anounceMainServerThread(&UDPServer::anounceMainServer, this);
@@ -809,6 +811,21 @@ void UDPServer::processPacket_server()
             {
                 std::cout << "Received Reply Ping packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
                 pingQueue.push(clientAddress);
+            } 
+            else if (packet.find("Election Result"))
+            {
+                processElectionResult(packet);
+                std::cout << "Received Election result from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
+            }
+            else if (packet == "Election Request")
+            {
+                processElectionRequest(packet, clientAddress);
+                std::cout << "Received Election request from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
+            }
+            else if (packet.find("Election Request Ack"))
+            {
+                processElectionRequestAck(packet, clientAddress);
+                std::cout << "Received Election request ack from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
             }
         }
         else
@@ -817,6 +834,66 @@ void UDPServer::processPacket_server()
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }
+}
+
+// "Election Result" + ";" + "<MainServer ID>" + ";" + "<Main Server IP"
+void UDPServer::processElectionResult(const std::string &packet)
+{
+    std::vector<std::string> result = splitString(packet);
+    int electionServerId = atoi(result[1].c_str());
+    std::string electionServerIp = result[2];
+
+    mainServerPort = PORT;
+    mainServerIP = electionServerIp;
+    if (electionServerId == this->serverId){
+        isMainServer = true;
+    }
+
+}
+
+void UDPServer::processElectionRequest(const std::string &packet, const sockaddr_in& clientaddr)
+{
+    // TODO: send an ack message to clientaddr
+}
+
+void UDPServer::processElectionRequestAck(const std::string &packet, const sockaddr_in& clientaddr)
+{
+    // TODO: verify if the ack received is greater than the greatest id received until then
+}
+
+/*// Função para obter os IDs mais altos do vetor de servidores
+std::vector<std::pair<std::string, sockaddr_in>> get_higher_ids(const std::vector<sockaddr_in>& otherServers) {
+    // Inicializa um vetor para armazenar os IDs mais altos encontrados
+    std::vector<std::pair<std::string, sockaddr_in>> higherIds;
+
+    // Inicializa uma variável para armazenar o maior ID encontrado
+    std::string maxId;
+
+    // Itera sobre os servidores fornecidos
+    for (const auto& server : otherServers) {
+        // Calcula o ID do servidor atual
+        std::string currentId = calcID(server);
+
+        // Verifica se o ID atual é maior do que o máximo encontrado até agora
+        if (currentId > maxId) {
+            // Se sim, atualiza o máximo ID e o vetor de IDs mais altos
+            maxId = currentId;
+            higherIds.clear(); // Limpa o vetor anterior de IDs mais altos
+            higherIds.push_back({currentId, server});
+        } else if (currentId == maxId) {
+            // Se o ID atual for igual ao máximo, adiciona-o ao vetor de IDs mais altos
+            higherIds.push_back({currentId, server});
+        }
+    }
+
+    // Retorna o vetor de IDs mais altos
+    return higherIds;
+}*/
+std::string UDPServer::calcID(sockaddr_in Address)
+{
+    std::string id = inet_ntoa(Address.sin_addr);
+    id += std::to_string(ntohs(Address.sin_port));
+    return id;
 }
 
 void UDPServer::processBackup(const std::string &packet)
@@ -833,12 +910,19 @@ void UDPServer::processBackup(const std::string &packet)
     std::istringstream pairStream(token);
     std::string ip;
     int port;
+    std::vector<sockaddr_in> otherServersTemp;
     while (std::getline(pairStream, token, ';')) {
         std::istringstream pair(token);
         std::getline(pair, ip, ',');
         std::getline(pair, token, ',');
         std::istringstream(token) >> port;
-        std::cout << "2nd: (" << ip << ", " << port << ")" << std::endl;
+        //std::cout << "2nd: (" << ip << ", " << port << ")" << std::endl;
+        sockaddr_in address;
+        memset(&address, 0, sizeof(address));
+        address.sin_family = AF_INET;
+        address.sin_port = htons(port);
+        inet_pton(AF_INET, ip.c_str(), &(address.sin_addr));
+        otherServersTemp.push_back(address);
     }
 
     /*for (const std::string &pair : ipPortPairs)
@@ -876,12 +960,14 @@ void UDPServer::processBackup(const std::string &packet)
     // 3rd part: Queue with (uint16, int, string)
     std::getline(iss, token, '/');
     std::istringstream queueStream(token);
-    std::queue<std::tuple<uint16_t, int, std::string>> queue;
+    std::queue<twt::Message> messageBufferTemp;
     while (std::getline(queueStream, token, ';')) {
         uint16_t param1;
         int param2;
         std::string param3;
         std::string param4;
+        twt::Message tempMessage;
+        twt::User tempUser;
         std::istringstream tupleStream(token);
         std::getline(tupleStream, token, ',');
         std::istringstream(token) >> param1;
@@ -890,43 +976,104 @@ void UDPServer::processBackup(const std::string &packet)
         std::getline(tupleStream, token, ',');
         std::istringstream(token) >> param3;
         std::getline(tupleStream, param4, ',');
-        std::cout << "3rd: (" << param1 << ", " << param2 << ", " << param3 << ", "<< param4 <<")" << std::endl;
+        tempUser.userId = param2;
+        tempUser.username = param3;
+        tempMessage.timestamp = param1;
+        tempMessage.sender = tempUser;
+        tempMessage.content = param4;
+        messageBufferTemp.push(tempMessage);
+        //std::cout << "3rd: (" << param1 << ", " << param2 << ", " << param3 << ", "<< param4 <<")" << std::endl;
         //queue.push(std::make_tuple(param1, param2, param3));
     }
     //std::cout << "3rd: Queue Size: " << queue.size() << std::endl;
 
-    // 4th part: Database with struct
-    /*std::getline(iss, token, '/');
+    std::getline(iss, token, '/');
     std::istringstream dbStream(token);
-    std::vector<DatabaseEntry> database;
-    while (std::getline(dbStream, token, ';')) {
-        DatabaseEntry entry;
-        entry.name = token;
+    std::vector<twt::UserInfo> userVectorTemp;
+    while (std::getline(dbStream, token, ':')) {
+        twt::UserInfo tempUser;
+        std::unordered_set<int> tempFollowers;
+        std::string tempName;
+        int tempId;
+        std::istringstream entryStream(token);
 
-        std::getline(dbStream, token, ';');
+        std::getline(entryStream, tempName, ';');
+
+
+        std::getline(entryStream, token, ';');
         std::istringstream numbersStream(token);
         while (std::getline(numbersStream, token, ',')) {
             int num;
             std::istringstream(token) >> num;
-            entry.numbers.push_back(num);
+            tempFollowers.insert(num);
         }
 
-        std::getline(dbStream, token, ',');
-        std::istringstream(token) >> entry.singleNumber;
+        std::getline(entryStream, token, ',');
+        tempId = std::stoi(token);
 
-        database.push_back(entry);
+        tempUser.user.username = tempName;
+        tempUser.user.userId = tempId;
+        tempUser.followers = tempFollowers;
+        /*std::cout << "Name: " << tempName << " Followers: ";
+        for(int i : tempFollowers)
+            std::cout << " " << i;
+        std::cout << " UserID: " << tempId << std::endl;*/
+        userVectorTemp.push_back(tempUser);
     }
-    std::cout << "4th: Database Size: " << database.size() << std::endl;*/
+
+    otherServers = otherServersTemp;
+    messageBuffer = messageBufferTemp;
+    userVector = userVectorTemp;
+    /*for (const sockaddr_in &addr : otherServersTemp)
+    {
+        char ipStr[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &(addr.sin_addr), ipStr, INET_ADDRSTRLEN);
+        std::cout << "IP: " << ipStr << ", Port: " << ntohs(addr.sin_port) << std::endl;
+    }
+    
+    std::queue<twt::Message> tempMessageBufferTemp = messageBufferTemp;
+    while (!tempMessageBufferTemp.empty())
+    {
+        twt::Message message = tempMessageBufferTemp.front();
+        std::cout << "Timestamp: " << message.timestamp << " Sender: " << message.sender.userId << " " << message.sender.username << " Content: " << message.content << std::endl;
+        tempMessageBufferTemp.pop();
+    }
+
+    for(const twt::UserInfo &user : userVectorTemp)
+    {
+        std::cout << "Name: " << user.user.username << " Followers: ";
+        for(int i : user.followers)
+            std::cout << " " << i;
+        std::cout << " UserID: " << user.user.userId << std::endl;
+    }*/
+
+}
+
+std::pair<int, std::string> UDPServer::startElection(std::vector<std::pair<int, std::string>> serversToSend)
+{
+    
 }
 
 void UDPServer::electionMainServer()
 {
-    std::cout << "Starting election" << std::endl;
-    mainServerPort = myServerPort;//4002;
-    mainServerIP = "127.0.0.1";
-    isMainServer = true;
-    std::cout << "New Main Server Elected" << std::endl;
-    return;
+    std::pair<std::string, int> elect; 
+    // TODO: returns a vector of that contains the address of the server with higher ID than the current server
+    //other_server_addr = getHigherIds();
+    
+    // TODO: create a function that sends a message to all server with ID higher than this->serverId
+    //elect = startElection(other_server_addr);
+
+    mainServerIP = elect.first;
+    mainServerPort = elect.second;
+    
+    if (mainServerIP == getIPAddress() && mainServerPort == myServerPort)
+        isMainServer = true;
+    else
+        isMainServer = false;
+    
+    // TODO: create a function that sends the winner of the election to all of the servers active
+    //sendElectionResult(a);
+    
 }
 
 void UDPServer::sendBackupPacket()
@@ -990,7 +1137,13 @@ std::queue<std::string> UDPServer::serializeDatabase()
     serializedDatabase.push("/");
     for (auto &user : read_file(database_name))
     {
-        serializedDatabase.push(format_data_for_server(user));
+        std::string serializeData = format_data(user);
+        if(&user != &read_file(database_name).back())
+        {
+            serializeData = serializeData + ":";
+        }
+        serializedDatabase.push(serializeData);
+        std::cout << serializeData;
     }
 
     /*while (!serializedDatabase.empty())
@@ -1012,6 +1165,45 @@ int generateRandomNumber()
     return distribution(gen);
 }
 
+std::string UDPServer::getIPAddress() {
+    struct ifaddrs *ifAddrStruct = nullptr;
+    void *tmpAddrPtr = nullptr;
+    std::string ipAddress;
+
+    // Obter a lista de todas as interfaces de rede
+    if (getifaddrs(&ifAddrStruct) == -1) {
+        std::cerr << "Erro ao obter informações das interfaces de rede\n";
+        return "";
+    }
+
+    // Percorrer as interfaces de rede
+    for (struct ifaddrs *ifa = ifAddrStruct; ifa != nullptr; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == nullptr)
+            continue;
+
+        // Ignorar interfaces que não são do tipo AF_INET (IPv4)
+        if (ifa->ifa_addr->sa_family == AF_INET) {
+            // Obter o endereço IP como uma string
+            tmpAddrPtr = &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
+            char addressBuffer[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
+            std::string interfaceName(ifa->ifa_name);
+            
+            // Considerar apenas interfaces não loopback
+            if (interfaceName != "lo") {
+                ipAddress = std::string(addressBuffer);
+                break;
+            }
+        }
+    }
+
+    // Liberar a memória alocada para a lista de interfaces de rede
+    if (ifAddrStruct != nullptr)
+        freeifaddrs(ifAddrStruct);
+
+    return ipAddress;
+}
+
 int main(int argc, char *argv[])
 {
     int porta_main, port_server_replica;
@@ -1029,11 +1221,12 @@ int main(int argc, char *argv[])
     }
     porta_main = std::stoi(argv[1]);
 
-    UDPServer serverServer(port_server_replica, porta_main, ip);
+    UDPServer serverServer(port_server_replica, porta_main, ip, 0);
 
     std::thread serverThread(&UDPServer::start_replication, &serverServer);
     std::thread clientThread;
     while (running){
+
         if (isMainServer && !initialized){
             initialized = true;
             UDPServer clientServer(PORT);

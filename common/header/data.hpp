@@ -58,11 +58,11 @@ namespace twt{
 	};
 
 	class UserInfo {
-		private:
+		public:
 			User user;
 			int activeSessions;
 			std::unordered_set<int> followers;
-		public:
+			
 			UserInfo();
 			UserInfo(int userId, std::string username);
 			UserInfo(int userId, std::string username, std::unordered_set<int> followers);
