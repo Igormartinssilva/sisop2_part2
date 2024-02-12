@@ -13,7 +13,6 @@ UDPServer::UDPServer(int port, int mainServerPort_param, std::string mainServerI
 {
     serverSocket = socket(AF_INET, SOCK_DGRAM, 0);
     this->serverId = serverId;
-    //election = Election(serverId);
 
     if (serverSocket < 0)
     {
@@ -819,7 +818,8 @@ void UDPServer::processPacket_server()
             }
             else if (packet == "Election Request")
             {
-                processElectionRequest(packet, clientAddress);
+                // retorna id
+                // sendto (, "Election Request Ack", )
                 std::cout << "Received Election request from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
             }
             else if (packet.find("Election Request Ack"))
@@ -851,50 +851,75 @@ void UDPServer::processElectionResult(const std::string &packet)
 
 }
 
-void UDPServer::processElectionRequest(const std::string &packet, const sockaddr_in& clientaddr)
-{
-    // TODO: send an ack message to clientaddr
-}
-
-void UDPServer::processElectionRequestAck(const std::string &packet, const sockaddr_in& clientaddr)
-{
-    // TODO: verify if the ack received is greater than the greatest id received until then
-}
-
-/*// Função para obter os IDs mais altos do vetor de servidores
-std::vector<std::pair<std::string, sockaddr_in>> get_higher_ids(const std::vector<sockaddr_in>& otherServers) {
-    // Inicializa um vetor para armazenar os IDs mais altos encontrados
-    std::vector<std::pair<std::string, sockaddr_in>> higherIds;
-
-    // Inicializa uma variável para armazenar o maior ID encontrado
-    std::string maxId;
-
-    // Itera sobre os servidores fornecidos
-    for (const auto& server : otherServers) {
-        // Calcula o ID do servidor atual
-        std::string currentId = calcID(server);
-
-        // Verifica se o ID atual é maior do que o máximo encontrado até agora
-        if (currentId > maxId) {
-            // Se sim, atualiza o máximo ID e o vetor de IDs mais altos
-            maxId = currentId;
-            higherIds.clear(); // Limpa o vetor anterior de IDs mais altos
-            higherIds.push_back({currentId, server});
-        } else if (currentId == maxId) {
-            // Se o ID atual for igual ao máximo, adiciona-o ao vetor de IDs mais altos
-            higherIds.push_back({currentId, server});
-        }
-    }
-
-    // Retorna o vetor de IDs mais altos
-    return higherIds;
-}*/
 std::string UDPServer::calcID(sockaddr_in Address)
 {
     std::string id = inet_ntoa(Address.sin_addr);
     id += std::to_string(ntohs(Address.sin_port));
     return id;
 }
+
+void UDPServer::processElectionRequestAck(const std::string &packet, const sockaddr_in& clientaddr)
+{
+    // TODO: verify if the ack received is greater than the greatest id received until then
+    // update greatestResponseId and greatestResponsePort
+    // if (calcId(a) > calcId(b))
+    
+    //separação do ip e porta do pacote recebido
+    std::vector<std::string> tokens = splitString(packet);
+    std::string receivedIp = tokens[1];
+    int receivedPort = atoi(tokens[2].c_str());
+
+    sockaddr_in address = toSockaddr(receivedPort, receivedIp);
+    sockaddr_in current_addr = toSockaddr(myServerPort, getIPAddress());
+
+    std::string senderId = calcID(address);
+    std::string currentId = calcID(current_addr);
+
+    // Verificando se o ID do remetente é maior que o ID atual do servidor
+    if (senderId > currentId) {
+        // Atualizando o maior ID recebido e a porta correspondente
+        greatestResponseIp = receivedIp;
+        greatestResponsePort = receivedPort;
+    }
+}
+
+sockaddr_in UDPServer::toSockaddr(int port, std::string ip){
+    sockaddr_in address;
+    memset(&address, 0, sizeof(address));
+    address.sin_family = AF_INET;
+    address.sin_port = htons(port);
+    inet_pton(AF_INET, ip.c_str(), &(address.sin_addr));
+    return address;
+}
+
+// Função para obter os IDs mais altos do vetor de servidores
+std::vector<std::pair<std::string, int>> UDPServer::getHigherIds(const std::vector<sockaddr_in>& otherServers) {
+    std::vector<std::pair<std::string, int>> higherIds;
+    std::string maxId = "0"; // Inicializa o ID máximo como "0"
+
+    // Itera sobre os outros servidores
+    for (const auto& server : otherServers) {
+        std::string id = calcID(server);
+        // Verifica se o ID atual é maior que o máximo encontrado até agora
+        if (id > maxId) {
+            maxId = id; // Atualiza o ID máximo
+        }
+    }
+
+    // Adiciona os servidores com IDs maiores ao vetor de IDs mais altos
+    for (const auto& server : otherServers) {
+        std::string id = calcID(server);
+        if (id == maxId) {
+            std::string ip = inet_ntoa(server.sin_addr);
+            int port = ntohs(server.sin_port);
+            higherIds.push_back(std::make_pair(ip, port));
+        }
+    }
+
+    return higherIds;
+}
+
+
 
 void UDPServer::processBackup(const std::string &packet)
 {
@@ -1023,7 +1048,7 @@ void UDPServer::processBackup(const std::string &packet)
 
     otherServers = otherServersTemp;
     messageBuffer = messageBufferTemp;
-    userVector = userVectorTemp;
+ //   userVector = userVectorTemp;                                              ---------------------------------------comentei treco do pedro
     /*for (const sockaddr_in &addr : otherServersTemp)
     {
         char ipStr[INET_ADDRSTRLEN];
@@ -1049,31 +1074,59 @@ void UDPServer::processBackup(const std::string &packet)
 
 }
 
-std::pair<int, std::string> UDPServer::startElection(std::vector<std::pair<int, std::string>> serversToSend)
+std::pair<int, std::string> UDPServer::startElection(std::vector<std::pair<std::string, int>> serversToSend)
 {
+    std::pair<int, std::string> result;
+    std::string toSend("Election Request;" + std::to_string(this->serverId));
     
+    this->greatestResponsePort = myServerPort;
+    this->greatestResponseIp = getIPAddress();
+    
+    for (auto server : serversToSend){
+        sockaddr_in address;
+        memset(&address, 0, sizeof(address));
+        address.sin_family = AF_INET;
+        address.sin_port = htons(server.second);
+        inet_pton(AF_INET, server.first.c_str(), &(address.sin_addr));
+
+        sendto(this->serverSocket, toSend.c_str(), BUFFER_SIZE, 0, (struct sockaddr *)&server, sizeof(server));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+    result.first = this->greatestResponsePort;
+    result.second = this->greatestResponseIp;
+
+    
+
+    return result;
+}
+
+void UDPServer::sendElectionResult(int port, std::string ip)
+{
+    std::string toSend("Election Result;" + std::to_string(port) + ';' + ip);
+    for (auto server : otherServers){
+        sendto(this->serverSocket, toSend.c_str(), BUFFER_SIZE, 0, (struct sockaddr *)&server, sizeof(server));
+    }
 }
 
 void UDPServer::electionMainServer()
 {
-    std::pair<std::string, int> elect; 
-    // TODO: returns a vector of that contains the address of the server with higher ID than the current server
-    //other_server_addr = getHigherIds();
+    std::pair<int, std::string> elect; 
+    //      TODO: returns a vector of that contains the address of the server with higher ID than the current server
+    auto other_server_addr = getHigherIds(otherServers);
     
-    // TODO: create a function that sends a message to all server with ID higher than this->serverId
-    //elect = startElection(other_server_addr);
+    //      TODO: create a function that sends a message to all server with ID higher than this->serverId
+    elect = startElection(other_server_addr);
 
-    mainServerIP = elect.first;
-    mainServerPort = elect.second;
+    mainServerIP = elect.second;
+    mainServerPort = elect.first;
     
     if (mainServerIP == getIPAddress() && mainServerPort == myServerPort)
         isMainServer = true;
     else
         isMainServer = false;
     
-    // TODO: create a function that sends the winner of the election to all of the servers active
-    //sendElectionResult(a);
-    
+    //      TODO: create a function that sends the winner of the election to all of the servers active
+    sendElectionResult(mainServerPort, mainServerIP);
 }
 
 void UDPServer::sendBackupPacket()

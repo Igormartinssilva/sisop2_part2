@@ -53,13 +53,16 @@ public:
     bool isSequenceNumberValid(const sockaddr_in& clientAddress, const twt::Packet& pack);
 
 private:
-    
+    int greatestResponsePort;
+    std::string greatestResponseIp;
     int  myServerPort;
     bool isAckReceived;
     bool isMainServerUp;
     bool waitForAck();
     void sendPacketWithRetransmission(const sockaddr_in& clientAddress, std::string returnMassage);
-    //Election election;
+    std::string calcID(sockaddr_in Address);
+    sockaddr_in toSockaddr(int port, std::string ip);
+        //Election election;
 
     std::unordered_map<uint32_t, std::unordered_map<uint16_t, uint16_t>> lastSequenceNumber;
 
@@ -89,7 +92,6 @@ private:
     void processElectionResult(const std::string& input);
     void processElectionRequest(const std::string& input, const sockaddr_in& clientaddr);
     void processElectionRequestAck(const std::string &packet, const sockaddr_in& clientaddr);
-    std::string calcID(sockaddr_in Address);
 
     std::vector<sockaddr_in> otherServers; 
     int serverSocket;
@@ -101,10 +103,11 @@ private:
     int serverId;
     
     void electionMainServer(); 
-    std::vector<std::pair<int, std::string>> getHigherIds();
-    std::pair<int, std::string> startElection(std::vector<std::pair<int, std::string>> serversToSend);
+    //std::vector<std::pair<int, std::string>> getHigherIds();
+    std::pair<int, std::string> startElection(std::vector<std::pair<std::string, int>> serversToSend);
     void sendElectionResult(int port, std::string ip);
-
+    std::vector<std::pair<std::string, int>> getHigherIds(const std::vector<sockaddr_in>& otherServers);
+    
     std::deque<PacketInfo> packetBuffer;
     std::unordered_map<int, std::queue<twt::Message>> userMessageBuffer, msgToSendBuffer;  // User ID -> Queue of stored messages
     std::queue<twt::Message> messageBuffer; // Messages of the tr
