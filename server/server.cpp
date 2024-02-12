@@ -700,6 +700,8 @@ void UDPServer::Ping()
     {
         if (!isMainServer)
         {
+            isMainServerUp = false;
+            sockaddr_in receivedPing;
             struct sockaddr_in mainServerAddress;
             memset(&mainServerAddress, 0, sizeof(mainServerAddress));
             mainServerAddress.sin_family = AF_INET;
@@ -709,14 +711,23 @@ void UDPServer::Ping()
             {
                 // std::cout << "Sending ping message to: " << inet_ntoa(mainServerAddress.sin_addr) << ":" << ntohs(mainServerAddress.sin_port) << std::endl;
                 sendto(serverSocket, "Ping", BUFFER_SIZE, 0, (struct sockaddr *)&mainServerAddress, sizeof(mainServerAddress));
-
+                
                 // Aguarde a resposta por 1 ms
-                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-                // if(isMainServerUp == false && attempt == 4){
-                //     std::cout << "Main server is down" << std::endl;
-                //     //electionMainServer();
-                // }
+                receivedPing = pingQueue.front();
+                pingQueue.pop();
+                if (receivedPing.sin_port == mainServerAddress.sin_port)
+                {
+                    isMainServerUp = true;
+                    std::cout << "Main server is up" << std::endl; 
+                    break;
+                }
+
+                if(isMainServerUp == false && attempt == 4){
+                    std::cout << "Main server is down" << std::endl;
+                    //electionMainServer();
+                }
             }
         }
     }
@@ -759,12 +770,10 @@ void UDPServer::processPacket_server()
             if (packet == "Ping")
             {
                 processPingMessage(clientAddress);
-                std::cout << "Received Ping packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
             }
             else if (packet == "Reply Ping")
             {
                 pingQueue.push(clientAddress);
-                std::cout << "Received Reply Ping packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
             }
         }
         else
@@ -816,10 +825,12 @@ void UDPServer::processPacket_server()
 
 void UDPServer::electionMainServer()
 {
+    std::cout << "Starting election" << std::endl;
     std::string myIPAddress;
     myIPAddress = "172.0.0.1"; //"172.28.121.208"
     mainServerIP = myIPAddress;
     std::cout << "My IP Address: " << mainServerIP << std::endl;
+    std::cout << "New Main Server Elected" << std::endl;
     return;
 }
 
