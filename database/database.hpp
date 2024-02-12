@@ -16,7 +16,9 @@ std::string unorderedSetParaString( std::unordered_set<int>& mySet);
 
 std::vector<twt::UserInfo> read_file( std::string& filename);
 
-std::string format_data( twt::UserInfo& user);
+std::string format_data(twt::UserInfo& user);
+
+std::string format_data_for_server(twt::UserInfo& user);
 
 void write_file( std::string& filename,  std::vector<twt::UserInfo>& users);
 

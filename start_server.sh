@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Caminho para o executável do servidor
-SERVER_EXECUTABLE=./bin/server
+SERVER_EXECUTABLE=./bin/server 
 
 # Iniciar o servidor
-$SERVER_EXECUTABLE
+$SERVER_EXECUTABLE $1 $2

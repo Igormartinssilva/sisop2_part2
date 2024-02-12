@@ -39,6 +39,7 @@ public:
     void displayUserList();
     void displayFollowersList();
 
+    bool running;
     std::unordered_map<int, twt::UserInfo> getUsersList();
 
     void resetSequenceNumber(const sockaddr_in& clientAddress);
@@ -74,22 +75,23 @@ private:
     void handleLogout(const sockaddr_in& clientAddress, int id);
     void sendBufferedMessages(int userId);
     bool isPacketRepeated(const twt::Packet& pack, const sockaddr_in& clientAddress);
+    void anounceMainServer();
     void broadcastMessage(int receiverId);
     bool UserConnected(int userId);
     void sendPacket();
     std::queue<std::string> serializeDatabase();
     void processBackup(const std::string& input);
 
-    std::vector<sockaddr_in> otherServers; // IP, Porta
+    std::vector<sockaddr_in> otherServers; 
     int serverSocket;
     std::queue<sockaddr_in> pingQueue;
     std::queue<std::pair<const sockaddr_in&, const std::string>> processingBuffer;
     std::queue<std::pair<const sockaddr_in&, const std::string>> sendBuffer;
     std::string mainServerIP;
     int mainServerPort;
-    bool isMainServer;
+    
     void electionMainServer(); 
-    std::unordered_map<int, std::vector<sockaddr_in>> connectedUsers;  // User ID -> Set of connected sessions
+    
     std::deque<PacketInfo> packetBuffer;
     std::unordered_map<int, std::queue<twt::Message>> userMessageBuffer, msgToSendBuffer;  // User ID -> Queue of stored messages
     std::queue<twt::Message> messageBuffer; // Messages of the tr
@@ -103,7 +105,6 @@ private:
     std::mutex mutexLogBuff;
     std::mutex mutexLogPing;
     std::mutex mutexServerSend;
-    bool running;
 
     
 

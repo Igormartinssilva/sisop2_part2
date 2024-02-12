@@ -66,6 +66,14 @@ std::string format_data(twt::UserInfo& user) {
     return formatted_data.str();
 }
 
+std::string format_data_for_server(twt::UserInfo& user){
+    std::ostringstream formatted_data;
+    std::unordered_set<int> user_followers;
+    user_followers = user.getFollowers();
+    formatted_data << user.getUsername() << ";" << unorderedSetParaString(user_followers) << ";" << user.getId() + ":";
+    return formatted_data.str();
+}
+
 // Função para escrever um vetor de UserInfo em um arquivo
 void write_file( std::string& filename,  std::vector<twt::UserInfo>& users) {
     std::ofstream file(filename);
