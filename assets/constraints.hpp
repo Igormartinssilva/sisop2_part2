@@ -1,6 +1,9 @@
 #ifndef PORT
     #define PORT 4000
 #endif
+#ifndef PORT_SERVER
+    #define PORT_SERVER 4001
+#endif
 #ifndef MSG_SIZE
     #define MSG_SIZE 1011
 #endif
