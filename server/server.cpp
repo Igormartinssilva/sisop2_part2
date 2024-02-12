@@ -714,19 +714,22 @@ void UDPServer::Ping()
                 
                 // Aguarde a resposta por 1 ms
                 std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-                receivedPing = pingQueue.front();
-                pingQueue.pop();
-                if (receivedPing.sin_port == mainServerAddress.sin_port)
+                if (!pingQueue.empty())
                 {
-                    isMainServerUp = true;
-                    std::cout << "Main server is up" << std::endl; 
-                    break;
+                    receivedPing = pingQueue.front();
+                    pingQueue.pop();
+                    if (receivedPing.sin_port == mainServerAddress.sin_port)
+                    {
+                        isMainServerUp = true;
+                        std::cout << "Main server is up" << std::endl; 
+                        break;
+                    }
                 }
+                
 
                 if(isMainServerUp == false && attempt == 4){
                     std::cout << "Main server is down" << std::endl;
-                    //electionMainServer();
+                    electionMainServer();
                 }
             }
         }
@@ -773,6 +776,7 @@ void UDPServer::processPacket_server()
             }
             else if (packet == "Reply Ping")
             {
+                std::cout << "Received Reply Ping packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
                 pingQueue.push(clientAddress);
             }
         }
