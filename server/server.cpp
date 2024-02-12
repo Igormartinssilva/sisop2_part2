@@ -18,8 +18,8 @@ UDPServer::UDPServer(int port, int mainServerPort_param, std::string mainServerI
 
     if (mainServerIP == "")
     {
-        mainServerIP = "172.0.0.1";//"172.28.121.208" // RETIRAR ESSA LINHA POSTERIORMENTE
-        isMainServer = true;             // RETIRAR ESSA LINHA POSTERIORMENTE
+        mainServerIP = "172.0.0.1"; //"172.28.121.208" // RETIRAR ESSA LINHA POSTERIORMENTE
+        isMainServer = true;        // RETIRAR ESSA LINHA POSTERIORMENTE
         port = mainServerPort_param;
     }
     else
@@ -198,7 +198,7 @@ void UDPServer::handlePackets()
         {
             std::lock_guard<std::mutex> lock(mutexProcBuff);
             processingBuffer.push({clientAddress, buffer});
-            std::cout << "Received packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) <<  " msg: "<< buffer << std::endl;
+            // std::cout << "Received packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) <<  " msg: "<< buffer << std::endl;
         }
     }
 }
@@ -676,20 +676,20 @@ void UDPServer::start_replication()
     running = true;
     std::cout << "Server Replication listening on port " << myServerPort << "...\n";
     std::thread PingThread(&UDPServer::Ping, this);
-    std::thread electionMainServerThread(&UDPServer::electionMainServer, this);
+    // std::thread electionMainServerThread(&UDPServer::electionMainServer, this);
     std::thread ReceiveThread(&UDPServer::handlePackets, this);
     std::thread ConsumeBufferThread(&UDPServer::processPacket_server, this);
-    //std::thread sendBackupPacketThread(&UDPServer::sendBackupPacket, this);
-    //std::thread sendPacketThread(&UDPServer::sendPacket, this);
+    // std::thread sendBackupPacketThread(&UDPServer::sendBackupPacket, this);
+    // std::thread sendPacketThread(&UDPServer::sendPacket, this);
 
     while (running)
     {
     }
 
-    //sendPacketThread.join();
-    //sendBackupPacketThread.join();
+    // sendPacketThread.join();
+    // sendBackupPacketThread.join();
     PingThread.join();
-    electionMainServerThread.join();
+    // electionMainServerThread.join();
     ReceiveThread.join();
     ConsumeBufferThread.join();
 }
@@ -707,16 +707,16 @@ void UDPServer::Ping()
             inet_pton(AF_INET, mainServerIP.c_str(), &(mainServerAddress.sin_addr));
             for (int attempt = 0; attempt < 5; ++attempt)
             {
-                //std::cout << "Sending ping message to: " << inet_ntoa(mainServerAddress.sin_addr) << ":" << ntohs(mainServerAddress.sin_port) << std::endl;
+                // std::cout << "Sending ping message to: " << inet_ntoa(mainServerAddress.sin_addr) << ":" << ntohs(mainServerAddress.sin_port) << std::endl;
                 sendto(serverSocket, "Ping", BUFFER_SIZE, 0, (struct sockaddr *)&mainServerAddress, sizeof(mainServerAddress));
 
                 // Aguarde a resposta por 1 ms
                 std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
-                //if(isMainServerUp == false && attempt == 4){
-                //    std::cout << "Main server is down" << std::endl;
-                //    //electionMainServer();
-                //}
+                // if(isMainServerUp == false && attempt == 4){
+                //     std::cout << "Main server is down" << std::endl;
+                //     //electionMainServer();
+                // }
             }
         }
     }
@@ -724,10 +724,10 @@ void UDPServer::Ping()
 
 void UDPServer::processPingMessage(sockaddr_in clientAddress)
 {
-    //std::lock_guard<std::mutex> lock(mutexServerSend);
-    //sendBuffer.push({clientAddress, "Reply Ping"});
-    //std::cout << "Sending reply to: " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
-    sendto(serverSocket, "Reply Ping a", BUFFER_SIZE, 0, (struct sockaddr *)&clientAddress, sizeof(clientAddress));
+    // std::lock_guard<std::mutex> lock(mutexServerSend);
+    // sendBuffer.push({clientAddress, "Reply Ping"});
+    // std::cout << "Sending reply to: " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
+    sendto(serverSocket, "Reply Ping", BUFFER_SIZE, 0, (struct sockaddr *)&clientAddress, sizeof(clientAddress));
     bool alreadyIn = false;
     for (auto &server : otherServers)
     {
@@ -742,73 +742,82 @@ void UDPServer::processPingMessage(sockaddr_in clientAddress)
     }
 }
 
-void UDPServer::processPacket_server() {
-    while (true) {
+void UDPServer::processPacket_server()
+{
+    while (running)
+    {
         std::unique_lock<std::mutex> lock(mutexProcBuff);
-
-        if (!processingBuffer.empty()) {
-            std::pair<const sockaddr_in&, const std::string&> bufferValue = processingBuffer.front();
-            const sockaddr_in& clientAddress = bufferValue.first;
+        if (!processingBuffer.empty())
+        {
+            std::string returnMessage("unknown type");
+            std::pair<const sockaddr_in &, const std::string &> bufferValue = processingBuffer.front();
+            const sockaddr_in &clientAddress = bufferValue.first;
             std::string packet = bufferValue.second;
-
-            // Adicione o código para processar e exibir a mensagem do buffer
-            //if (packet.find("Ping") != std::string::npos) {
-            //    processPingMessage(clientAddress);
-            //}
-            std::cout << "Processing buffer" << std::endl;
-
             processingBuffer.pop();
-        } else {
+            std::cout << "Received packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << " msg: " << packet << std::endl;
+
+            if (packet == "Ping")
+            {
+                processPingMessage(clientAddress);
+                std::cout << "Received Ping packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
+            }
+            else if (packet == "Reply Ping")
+            {
+                pingQueue.push(clientAddress);
+                std::cout << "Received Reply Ping packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
+            }
+        }
+        else
+        {
             lock.unlock();
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }
 }
 
-
-//void UDPServer::processPacket_server()
+// void UDPServer::processPacket_server()
 //{
-//    while (running)
-//    {
-//        std::unique_lock<std::mutex> lock(mutexProcBuff);
-//        if (!processingBuffer.empty())
-//        {
-//            std::cout << "Processing buffer" << std::endl;
-//            std::pair<const sockaddr_in &, const std::string &> bufferValue = processingBuffer.front();
-//            const sockaddr_in &clientAddress = bufferValue.first;
-//            std::string packet = bufferValue.second;
-//            //lock.unlock();
+//     while (running)
+//     {
+//         std::unique_lock<std::mutex> lock(mutexProcBuff);
+//         if (!processingBuffer.empty())
+//         {
+//             std::cout << "Processing buffer" << std::endl;
+//             std::pair<const sockaddr_in &, const std::string &> bufferValue = processingBuffer.front();
+//             const sockaddr_in &clientAddress = bufferValue.first;
+//             std::string packet = bufferValue.second;
+//             //lock.unlock();
 //
-//            if (packet == "Ping")
-//            {
-//                //processPingMessage(clientAddress);
-//                std::cout << "Received Ping packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
-//            }
-//            else if (packet == "Reply Ping")
-//          {
-//              pingQueue.push(clientAddress);
-//              std::cout << "Received Reply Ping packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
-//          }
-//         else if (packet == "Backup")
-//        {
-//              std::cout << "Received Backup packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
-//          }
-//            processingBuffer.pop();
-//            lock.unlock();
-//        }
-//        else
-//        {
-//            lock.unlock();
-//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-//        }
-//    }
-//    
-//}
+//             if (packet == "Ping")
+//             {
+//                 //processPingMessage(clientAddress);
+//                 std::cout << "Received Ping packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
+//             }
+//             else if (packet == "Reply Ping")
+//           {
+//               pingQueue.push(clientAddress);
+//               std::cout << "Received Reply Ping packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
+//           }
+//          else if (packet == "Backup")
+//         {
+//               std::cout << "Received Backup packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
+//           }
+//             processingBuffer.pop();
+//             lock.unlock();
+//         }
+//         else
+//         {
+//             lock.unlock();
+//             std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//         }
+//     }
+//
+// }
 
 void UDPServer::electionMainServer()
 {
     std::string myIPAddress;
-    myIPAddress = "172.0.0.1";//"172.28.121.208"
+    myIPAddress = "172.0.0.1"; //"172.28.121.208"
     mainServerIP = myIPAddress;
     std::cout << "My IP Address: " << mainServerIP << std::endl;
     return;
@@ -820,7 +829,7 @@ void UDPServer::sendBackupPacket()
     {
         if (isMainServer == true)
         {
-            //for (const auto &server : otherServers)
+            // for (const auto &server : otherServers)
             ////std::cout << "Other Servers:" << std::endl;
             //{
             //    //std::lock_guard<std::mutex> lock(mutexServerSend);
@@ -842,26 +851,30 @@ std::queue<std::string> UDPServer::serializeDatabase()
 {
     std::queue<std::string> serializedDatabase;
     serializedDatabase.push("Other Servers:");
-    for(const auto &server: otherServers){
+    for (const auto &server : otherServers)
+    {
         std::string serverIp = inet_ntoa(server.sin_addr);
         std::string serverPort = std::to_string((server.sin_port));
         std::string serializedData = serverIp + "," + serverPort;
         serializedDatabase.push(serializedData);
     }
     serializedDatabase.push("Messages:");
-    std::queue<twt::Message>  tempMessageBuffer = messageBuffer;
-    while(!tempMessageBuffer.empty()){
+    std::queue<twt::Message> tempMessageBuffer = messageBuffer;
+    while (!tempMessageBuffer.empty())
+    {
         twt::Message message = tempMessageBuffer.front();
         std::string serializedData = std::to_string(message.timestamp) + "," + std::to_string(message.sender.userId) + "," + message.content;
         serializedDatabase.push(serializedData);
         tempMessageBuffer.pop();
     }
     serializedDatabase.push("Database:");
-    for(auto &user: read_file(database_name)){
+    for (auto &user : read_file(database_name))
+    {
         serializedDatabase.push(format_data(user));
     }
-    
-    while(!serializedDatabase.empty()){
+
+    while (!serializedDatabase.empty())
+    {
         std::cout << serializedDatabase.front() << std::endl;
         serializedDatabase.pop();
     }
