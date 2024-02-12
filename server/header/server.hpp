@@ -78,6 +78,7 @@ private:
     bool UserConnected(int userId);
     void sendPacket();
     std::queue<std::string> serializeDatabase();
+    void processBackup(const std::string& input);
 
     std::vector<sockaddr_in> otherServers; // IP, Porta
     int serverSocket;

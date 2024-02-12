@@ -6,7 +6,7 @@
 #include <random>
 #include "../common/header/utils.hpp"
 
-UDPServer::UDPServer(int port, int mainServerPort_param, std::string mainServerIP)
+UDPServer::UDPServer(int port, int mainServerPort_param, std::string mainServerIP_param)
 {
     serverSocket = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -16,7 +16,7 @@ UDPServer::UDPServer(int port, int mainServerPort_param, std::string mainServerI
         return;
     }
 
-    if (mainServerIP == "")
+    if (mainServerIP_param == "")
     {
         mainServerIP = "172.0.0.1"; //"172.28.121.208" // RETIRAR ESSA LINHA POSTERIORMENTE
         isMainServer = true;        // RETIRAR ESSA LINHA POSTERIORMENTE
@@ -25,7 +25,10 @@ UDPServer::UDPServer(int port, int mainServerPort_param, std::string mainServerI
     else
     {
         isMainServer = false;
+        mainServerIP = mainServerIP_param;
     }
+   
+    isMainServerUp = true;
     mainServerPort = mainServerPort_param;
     myServerPort = port;
     std::cout << "Porta do servidor: " << port << std::endl;
@@ -676,20 +679,17 @@ void UDPServer::start_replication()
     running = true;
     std::cout << "Server Replication listening on port " << myServerPort << "...\n";
     std::thread PingThread(&UDPServer::Ping, this);
-    // std::thread electionMainServerThread(&UDPServer::electionMainServer, this);
     std::thread ReceiveThread(&UDPServer::handlePackets, this);
     std::thread ConsumeBufferThread(&UDPServer::processPacket_server, this);
-    // std::thread sendBackupPacketThread(&UDPServer::sendBackupPacket, this);
+    std::thread sendBackupPacketThread(&UDPServer::sendBackupPacket, this);
     // std::thread sendPacketThread(&UDPServer::sendPacket, this);
 
     while (running)
     {
     }
 
-    // sendPacketThread.join();
-    // sendBackupPacketThread.join();
+    sendBackupPacketThread.join();
     PingThread.join();
-    // electionMainServerThread.join();
     ReceiveThread.join();
     ConsumeBufferThread.join();
 }
@@ -700,7 +700,6 @@ void UDPServer::Ping()
     {
         if (!isMainServer)
         {
-            isMainServerUp = false;
             sockaddr_in receivedPing;
             struct sockaddr_in mainServerAddress;
             memset(&mainServerAddress, 0, sizeof(mainServerAddress));
@@ -709,9 +708,10 @@ void UDPServer::Ping()
             inet_pton(AF_INET, mainServerIP.c_str(), &(mainServerAddress.sin_addr));
             for (int attempt = 0; attempt < 5; ++attempt)
             {
+                std::cout << "Sending ping message to: " << inet_ntoa(mainServerAddress.sin_addr) << ":" << ntohs(mainServerAddress.sin_port) << std::endl;
                 // std::cout << "Sending ping message to: " << inet_ntoa(mainServerAddress.sin_addr) << ":" << ntohs(mainServerAddress.sin_port) << std::endl;
                 sendto(serverSocket, "Ping", BUFFER_SIZE, 0, (struct sockaddr *)&mainServerAddress, sizeof(mainServerAddress));
-                
+
                 // Aguarde a resposta por 1 ms
                 std::this_thread::sleep_for(std::chrono::milliseconds(500));
                 if (!pingQueue.empty())
@@ -721,13 +721,14 @@ void UDPServer::Ping()
                     if (receivedPing.sin_port == mainServerAddress.sin_port)
                     {
                         isMainServerUp = true;
-                        std::cout << "Main server is up" << std::endl; 
+                        std::cout << "Main server is up" << std::endl;
                         break;
                     }
                 }
-                
 
-                if(isMainServerUp == false && attempt == 4){
+                if (attempt == 4)
+                {
+                    isMainServerUp = false;
                     std::cout << "Main server is down" << std::endl;
                     electionMainServer();
                 }
@@ -770,7 +771,12 @@ void UDPServer::processPacket_server()
             processingBuffer.pop();
             std::cout << "Received packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << " msg: " << packet << std::endl;
 
-            if (packet == "Ping")
+            if (packet.find("Backup") != std::string::npos)
+            {
+                std::cout << "Recived Backup packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
+                processBackup(packet);
+            }
+            else if (packet == "Ping")
             {
                 processPingMessage(clientAddress);
             }
@@ -788,52 +794,82 @@ void UDPServer::processPacket_server()
     }
 }
 
-// void UDPServer::processPacket_server()
-//{
-//     while (running)
-//     {
-//         std::unique_lock<std::mutex> lock(mutexProcBuff);
-//         if (!processingBuffer.empty())
-//         {
-//             std::cout << "Processing buffer" << std::endl;
-//             std::pair<const sockaddr_in &, const std::string &> bufferValue = processingBuffer.front();
-//             const sockaddr_in &clientAddress = bufferValue.first;
-//             std::string packet = bufferValue.second;
-//             //lock.unlock();
-//
-//             if (packet == "Ping")
-//             {
-//                 //processPingMessage(clientAddress);
-//                 std::cout << "Received Ping packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
-//             }
-//             else if (packet == "Reply Ping")
-//           {
-//               pingQueue.push(clientAddress);
-//               std::cout << "Received Reply Ping packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
-//           }
-//          else if (packet == "Backup")
-//         {
-//               std::cout << "Received Backup packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
-//           }
-//             processingBuffer.pop();
-//             lock.unlock();
-//         }
-//         else
-//         {
-//             lock.unlock();
-//             std::this_thread::sleep_for(std::chrono::milliseconds(100));
-//         }
-//     }
-//
-// }
+void UDPServer::processBackup(const std::string& packet){
+    std::istringstream iss(packet);
+    std::string token;
+
+    // 1st part: Just the word Backup
+    std::getline(iss, token, '/');
+    std::cout << "1st: " << token << std::endl;
+
+    // 2nd part: Vector of pairs (string, int)
+    std::getline(iss, token, '/');
+    std::istringstream pairStream(token);
+    std::string name;
+    int number;
+    while (std::getline(pairStream, name, ',')) {
+        std::getline(pairStream, token, ',');
+        std::istringstream(token) >> number;
+        std::cout << "2nd: (" << name << ", " << number << ")" << std::endl;
+    }
+
+    // 3rd part: Queue with (uint16, int, string)
+    std::getline(iss, token, '/');
+    std::istringstream queueStream(token);
+    std::queue<twt::Message> queue;
+    while (std::getline(queueStream, token, ',')) {
+        uint16_t param1;
+        int param2;
+        std::string param3;
+        std::string param4;
+        twt::Message messageTemp;
+        twt::User userTemp;
+        std::istringstream(token) >> param1;
+        std::getline(queueStream, token, ',');
+        std::istringstream(token) >> param2;
+        std::getline(queueStream, param3, ',');
+        std::istringstream(token) >> param3;
+        std::getline(queueStream, param4, ',');
+        userTemp.userId = param2;
+        userTemp.username = param3;
+        messageTemp.sender = userTemp;
+        messageTemp.timestamp = param1;
+        messageTemp.content = param4;
+        queue.push(messageTemp);
+        std::cout << "3rd: (" << param1 << ", " << param2 << ", " << param3 <<  ", " << param4 << ")" << std::endl;
+    }
+    std::cout << "3rd: Queue Size: " << queue.size() << std::endl;
+
+    // 4th part: Database with struct
+    /*std::getline(iss, token, '/');
+    std::istringstream dbStream(token);
+    std::vector<DatabaseEntry> database;
+    while (std::getline(dbStream, token, ';')) {
+        DatabaseEntry entry;
+        entry.name = token;
+
+        std::getline(dbStream, token, ';');
+        std::istringstream numbersStream(token);
+        while (std::getline(numbersStream, token, ',')) {
+            int num;
+            std::istringstream(token) >> num;
+            entry.numbers.push_back(num);
+        }
+
+        std::getline(dbStream, token, ',');
+        std::istringstream(token) >> entry.singleNumber;
+
+        database.push_back(entry);
+    }
+    std::cout << "4th: Database Size: " << database.size() << std::endl;*/
+}
+
 
 void UDPServer::electionMainServer()
 {
     std::cout << "Starting election" << std::endl;
-    std::string myIPAddress;
-    myIPAddress = "172.0.0.1"; //"172.28.121.208"
-    mainServerIP = myIPAddress;
-    std::cout << "My IP Address: " << mainServerIP << std::endl;
+    mainServerPort = 4002;
+    mainServerIP = "127.0.0.1";
     std::cout << "New Main Server Elected" << std::endl;
     return;
 }
@@ -844,55 +880,60 @@ void UDPServer::sendBackupPacket()
     {
         if (isMainServer == true)
         {
-            // for (const auto &server : otherServers)
-            ////std::cout << "Other Servers:" << std::endl;
-            //{
-            //    //std::lock_guard<std::mutex> lock(mutexServerSend);
-            //    const std::string serverIp = inet_ntoa(server.sin_addr);
-            //    const int serverPort = ntohs(server.sin_port);
-            //    std::cout << "MUTEX SENDBACKUP: " << serverIp << std::endl;
-            //    //sendBuffer.push({server, "Backup"});
-            //    sendto(serverSocket, "Backup", BUFFER_SIZE, 0, (struct sockaddr *)&server, sizeof(server));
-            //    std::cout << "Server: " << serverIp << ":" << serverPort << std::endl;
-            //}
-            //// std::cout << std::endl;
-            auto temp = serializeDatabase();
+            for (const auto &server : otherServers)
+            {
+                // std::lock_guard<std::mutex> lock(mutexServerSend);
+                const std::string serverIp = inet_ntoa(server.sin_addr);
+                const int serverPort = ntohs(server.sin_port);
+                // sendBuffer.push({server, "Backup"});
+                auto temp = serializeDatabase();
+                std::string toSend;
+                while (!temp.empty())
+                {
+                    toSend = toSend + temp.front();
+                    temp.pop();
+                }
+                sendto(serverSocket, toSend.c_str(), BUFFER_SIZE, 0, (struct sockaddr *)&server, sizeof(server));
+            }
+            // auto temp = serializeDatabase();
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(20000));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10000));
     }
 }
 
 std::queue<std::string> UDPServer::serializeDatabase()
 {
     std::queue<std::string> serializedDatabase;
-    serializedDatabase.push("Other Servers:");
+    serializedDatabase.push("Backup/");
     for (const auto &server : otherServers)
     {
         std::string serverIp = inet_ntoa(server.sin_addr);
         std::string serverPort = std::to_string((server.sin_port));
-        std::string serializedData = serverIp + "," + serverPort;
+        std::string serializedData = serverIp + "," + serverPort + ";";
         serializedDatabase.push(serializedData);
     }
-    serializedDatabase.push("Messages:");
+    serializedDatabase.push("/");
     std::queue<twt::Message> tempMessageBuffer = messageBuffer;
     while (!tempMessageBuffer.empty())
     {
         twt::Message message = tempMessageBuffer.front();
-        std::string serializedData = std::to_string(message.timestamp) + "," + std::to_string(message.sender.userId) + "," + message.content;
+        std::string serializedData = std::to_string(message.timestamp) + "," + std::to_string(message.sender.userId)  + "," + message.sender.username + "," + message.content + ";";
         serializedDatabase.push(serializedData);
         tempMessageBuffer.pop();
     }
-    serializedDatabase.push("Database:");
+    serializedDatabase.push("29062001,420,Pedro,O Dick não ama JP bagrão;");
+    serializedDatabase.push("07022004,69,Gabriel,O Dick (M)ama JP bagrão;");
+    serializedDatabase.push("/");
     for (auto &user : read_file(database_name))
     {
         serializedDatabase.push(format_data(user));
     }
 
-    while (!serializedDatabase.empty())
+    /*while (!serializedDatabase.empty())
     {
         std::cout << serializedDatabase.front() << std::endl;
         serializedDatabase.pop();
-    }
+    }*/
     return serializedDatabase;
 }
 
