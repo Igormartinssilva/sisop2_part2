@@ -833,7 +833,8 @@ void UDPServer::processPacket_server()
             const sockaddr_in &clientAddress = bufferValue.first;
             std::string packet = bufferValue.second;
             processingBuffer.pop();
-            std::cout << "Received packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << " msg: " << packet << std::endl;
+            if(!isMainServer)
+                std::cout << "Received packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << " msg: " << packet << std::endl;
 
             if (packet.find("Backup") != std::string::npos && !isMainServer)
             {
@@ -1226,10 +1227,8 @@ std::queue<std::string> UDPServer::serializeDatabase()
         }
         serializedDatabase.push(serializedData);
     }
-    serializedDatabase.push("6969,420,Pedro,O Dick não ama JP bagrão;");
-    serializedDatabase.push("24245,69,Gabriel,O Dick (M)ama JP bagrão");
     serializedDatabase.push("/");
-    std::vector<twt::UserInfo> tempVec = read_file("assets/databasetes.txt");
+    std::vector<twt::UserInfo> tempVec = read_file(DATABASE_NAME);
     for (twt::UserInfo &user : tempVec)
     {
         std::string serializeData = format_data(user);
