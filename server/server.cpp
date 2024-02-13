@@ -142,7 +142,7 @@ void UDPServer::start()
     {
         std::string buffer;
         int choice;
-        clearScreen();
+        //clearScreen();
         printMenu();
         std::cin >> buffer;
         std::cin.ignore(); // Consume newline character
@@ -745,7 +745,9 @@ void UDPServer::anounceMainServer()
                 for (const sockaddr_in &userAddr : connectedUsers[userID])
                 {
                     //std::cout << "Anouncing main server to: " << inet_ntoa(userAddr.sin_addr) << ":" << ntohs(userAddr.sin_port) << std::endl;
-                    sendto(serverSocket, message.c_str(), message.size(), 0, (struct sockaddr *)&userAddr, sizeof(userAddr));
+                    // CHANGED: 
+                    // sendto(serverSocket, message.c_str(), message.size(), 0, (struct sockaddr *)&userAddr, sizeof(userAddr));
+                    sendto(serverSocket, message.c_str(), BUFFER_SIZE, 0, (struct sockaddr *)&userAddr, sizeof(userAddr));
                 }
             }
         
@@ -855,10 +857,11 @@ void UDPServer::processPacket_server()
                 processElectionResult(packet);
                 std::cout << "Received Election result from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
             }
-            else if (packet == "Election Request")
+            else if (packet.find("Election Request"))
             {
-                // retorna id
-                // sendto (, "Election Request Ack", )
+                // retorna id LUIZ ENTRA NO DISCORD!!!!
+                std::string toSend = std::string("Election Request Ack") + std::string(";") + this->getIPAddress() + std::string(";") + std::to_string(this->myServerPort);
+                sendto(serverSocket, toSend.c_str(), BUFFER_SIZE, 0, (struct sockaddr *)&clientAddress, sizeof(clientAddress));
                 std::cout << "Received Election request from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
             }
             else if (packet.find("Election Request Ack"))
@@ -1121,14 +1124,17 @@ std::pair<int, std::string> UDPServer::startElection(std::vector<std::pair<std::
     this->greatestResponseIp = getIPAddress();
     
     for (auto server : serversToSend){
-        sockaddr_in address;
-        memset(&address, 0, sizeof(address));
-        address.sin_family = AF_INET;
-        address.sin_port = htons(server.second);
-        inet_pton(AF_INET, server.first.c_str(), &(address.sin_addr));
-        std::cout << "Sending election request to: " << inet_ntoa(address.sin_addr) << ":" << ntohs(address.sin_port) << std::endl;
-        sendto(this->serverSocket, toSend.c_str(), BUFFER_SIZE, 0, (struct sockaddr *)&server, sizeof(server));
+        sockaddr_in address = toSockaddr(server.second, server.first);
+
+        if ((mainServerIP != getIPAddress() && 
+            mainServerIP != "127.0.0.1") ||  
+            mainServerPort != myServerPort)    
+        {
+            std::cout << "Sending election request to: " << inet_ntoa(address.sin_addr) << ":" << ntohs(address.sin_port) << std::endl;
+            sendto(this->serverSocket, toSend.c_str(), BUFFER_SIZE, 0, (struct sockaddr *)&address, sizeof(address));
+        }
     }
+
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     result.first = this->greatestResponsePort;
     result.second = this->greatestResponseIp;
