@@ -606,13 +606,13 @@ void UDPServer::saveDataBase()
         std::cout << std::endl;
     }
     */
-    write_file(database_name, users_vector);
+    write_file(DATABASE_NAME, users_vector);
 }
 
 void UDPServer::loadDataBase()
 {
     std::vector<twt::UserInfo> users_vector;
-    users_vector = read_file(database_name);
+    users_vector = read_file(DATABASE_NAME);
     usersList.loadMap(users_vector);
     saveFollowersFromUsersList();
     usersList.setNextId(findMaxUserId(users_vector) + 1);
@@ -966,7 +966,6 @@ void UDPServer::processBackup(const std::string &packet)
 
     // 1st part: Just the word Backup
     std::getline(iss, token, '/');
-    std::cout << "1st: " << token << std::endl;
 
     // 2nd part: Vector of pairs (string, int)
     std::getline(iss, token, '/');
@@ -1086,7 +1085,7 @@ void UDPServer::processBackup(const std::string &packet)
 
     otherServers = otherServersTemp;
     messageBuffer = messageBufferTemp;
- //   userVector = userVectorTemp;                                              ---------------------------------------comentei treco do pedro
+    write_file(DATABASE_NAME, userVectorTemp);                                              
     /*for (const sockaddr_in &addr : otherServersTemp)
     {
         char ipStr[INET_ADDRSTRLEN];
@@ -1205,7 +1204,7 @@ std::queue<std::string> UDPServer::serializeDatabase()
     for (sockaddr_in &server : otherServers)
     {
         std::string serverIp = inet_ntoa(server.sin_addr);
-        std::string serverPort = std::to_string((server.sin_port));
+        std::string serverPort = std::to_string(ntohs(server.sin_port));
         std::string serializedData = serverIp + "," + serverPort;
         if (&server != &otherServers.back())
         {
@@ -1230,10 +1229,11 @@ std::queue<std::string> UDPServer::serializeDatabase()
     serializedDatabase.push("6969,420,Pedro,O Dick não ama JP bagrão;");
     serializedDatabase.push("24245,69,Gabriel,O Dick (M)ama JP bagrão");
     serializedDatabase.push("/");
-    for (auto &user : read_file(database_name))
+    std::vector<twt::UserInfo> tempVec = read_file("assets/databasetes.txt");
+    for (twt::UserInfo &user : tempVec)
     {
         std::string serializeData = format_data(user);
-        if(&user != &read_file(database_name).back())
+        if(&user != &tempVec.back())
         {
             serializeData = serializeData + ":";
         }

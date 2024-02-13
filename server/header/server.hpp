@@ -21,6 +21,7 @@
 #include "../../database/database.hpp"
 #include "../../common/header/serialize.hpp"
 //#include "election.hpp"
+#define DATABASE_NAME "assets/database.txt"
 
 struct PacketInfo {
     twt::Packet packet;
@@ -38,7 +39,6 @@ public:
     void start_replication();
     twt::Followers followers;
     twt::UsersList usersList;
-    std::string database_name = "assets/database.txt";
     
     void displayUserList();
     void displayFollowersList();

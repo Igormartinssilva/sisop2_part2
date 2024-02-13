@@ -27,10 +27,9 @@ std::string unorderedSetParaString( std::unordered_set<int>& mySet) {
 }
 
 // Função para ler um arquivo e retornar um vetor de UserInfo
-std::vector<twt::UserInfo> read_file( std::string& filename) {
+std::vector<twt::UserInfo> read_file(const std::string& filename) {
     std::ifstream file(filename);
     std::vector<twt::UserInfo> usuarios;
-
     if (!file.is_open()) {
         std::cerr << "Erro ao abrir o arquivo: " << filename << std::endl;
         return usuarios;  // Retorna vetor vazio em caso de erro
@@ -67,7 +66,7 @@ std::string format_data(twt::UserInfo& user) {
 }
 
 // Função para escrever um vetor de UserInfo em um arquivo
-void write_file( std::string& filename,  std::vector<twt::UserInfo>& users) {
+void write_file(const std::string& filename,  std::vector<twt::UserInfo>& users) {
     std::ofstream file(filename);
 
     if (!file.is_open()) {
