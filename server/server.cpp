@@ -744,7 +744,7 @@ void UDPServer::Ping()
                 {
                     receivedPing = pingQueue.front();
                     pingQueue.pop();
-                    if (receivedPing.sin_port == mainServerAddress.sin_port)
+                    if (receivedPing.sin_port == mainServerAddress.sin_port && receivedPing.sin_addr.s_addr == mainServerAddress.sin_addr.s_addr)
                     {
                         isMainServerUp = true;
                         std::cout << "Main server is up" << std::endl;
