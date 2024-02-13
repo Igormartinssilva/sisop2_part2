@@ -15,6 +15,18 @@ Client::~Client() {
     receivingThread.join();
 }
 
+void Client::setMainServer(std::string ip, int port) {
+    struct sockaddr_in mainServerAddress;
+    memset(&mainServerAddress, 0, sizeof(mainServerAddress));
+    mainServerAddress.sin_family = AF_INET;
+    mainServerAddress.sin_port = htons(port);
+    inet_pton(AF_INET, ip.c_str(), &(mainServerAddress.sin_addr));
+
+    serv_addr = mainServerAddress;
+    
+    std::cout << "Main server set to " << ip << ":" << port << std::endl;
+}
+
 void Client::setServer(const char *hostname) {
     struct hostent *server = gethostbyname(hostname);
     if (server == nullptr) {
@@ -45,14 +57,14 @@ int Client::sendPacket(twt::PacketType type, uint16_t timestamp, const std::stri
 
     char buffer[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &serv_addr.sin_addr, buffer, sizeof(buffer));
-    
+
     n = sendto(sockfd, &bits, BUFFER_SIZE, 0, (const struct sockaddr *)&serv_addr, sizeof(serv_addr));
     
     if (n < 0) {
         perror("ERROR in sendto");
         std::cerr << "Error code: " << errno << std::endl;
     } 
-
+    std::cout << "Sent " << n << " bytes to " << buffer << ":" << ntohs(serv_addr.sin_port) << std::endl;
     return n;
 }
 
@@ -75,6 +87,7 @@ void Client::processReceiving() {
 
         // Adicione os dados recebidos ao buffer de recebimento
         receivingBuffer.push(buffer);
+        //std::cout << "Received: " << buffer << std::endl;
 
         // Notifique qualquer thread que esteja esperando que o buffer de recebimento esteja cheio
         bufferCondVar.notify_all();

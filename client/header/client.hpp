@@ -28,6 +28,7 @@ public:
     std::condition_variable bufferCondVar;
     void decodeReceiving();
     std::string getBuffer();
+    void setMainServer(std::string ip, int port);
     int sendPacket(twt::PacketType type, uint16_t timeStamp, const std::string& payload);
     
 private:

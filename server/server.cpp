@@ -8,6 +8,35 @@
 
 std::unordered_map<int, std::vector<sockaddr_in>> connectedUsers;  // User ID -> Set of connected sessions
 bool isMainServer;
+void printConnectedUsers() {
+    std::cout << "Connected Users:\n";
+
+    for (const auto& entry : connectedUsers) {
+        std::cout << "User ID: " << entry.first << "\n";
+
+        const std::vector<sockaddr_in>& sessions = entry.second;
+        std::cout << "  Sessions:\n";
+
+        for (const auto& session : sessions) {
+            char ip[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &(session.sin_addr), ip, INET_ADDRSTRLEN);
+            std::cout << "    IP: " << ip << ", Port: " << ntohs(session.sin_port) << "\n";
+        }
+
+        std::cout << "\n";
+    }
+}
+
+void printOtherServers(std::vector<sockaddr_in> otherServers)
+{
+    std::cout << "Other servers:" << std::endl;
+    for (const auto& server : otherServers) {
+        char ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &(server.sin_addr), ip, INET_ADDRSTRLEN);
+        int port = ntohs(server.sin_port);
+        std::cout << "IP: " << ip << ", Porta: " << port << std::endl;
+    }
+}
 
 UDPServer::UDPServer(int port, int mainServerPort_param, std::string mainServerIP_param, int serverId)
 {
@@ -465,7 +494,7 @@ void UDPServer::sendBufferedMessages(int userId)
                 for (const sockaddr_in &userAddr : connectedUsers[userId])
                 {
                     std::cout << "\n> Sending message: \"" << message.content.c_str() << "\" to user @" << usersList.getUsername(userId) << "(id " << std::to_string(userId) << ")"
-                              << " from user @" << message.sender.username << " (id " << message.sender.userId << ")" << std::endl;
+                            << "With port " << userAddr.sin_port << " from user @" << message.sender.username << " (id " << message.sender.userId << ")" << std::endl;
                     std::string str(
                         std::to_string(message.timestamp) + ',' +
                         message.sender.username + ',' +
@@ -707,13 +736,19 @@ void UDPServer::anounceMainServer()
     {
         if (isMainServer)
         {
-            std::string message = "Main," + mainServerIP + "," + std::to_string(mainServerPort);
+            //printConnectedUsers();
+            std::string message = "Main," + mainServerIP + "," + std::to_string(PORT);
             // Send message to all connected users
-            for (const auto& user : connectedUsers)
+            for (const auto &entry : connectedUsers)
             {
-                std::cout << "Anouncing main server to: " << inet_ntoa(user.second[0].sin_addr) << ":" << ntohs(user.second[0].sin_port) << std::endl;
-                sendto(serverSocket, message.c_str(), message.size(), 0, (struct sockaddr*)&user.second, sizeof(user.second));
+                int userID = entry.first;
+                for (const sockaddr_in &userAddr : connectedUsers[userID])
+                {
+                    //std::cout << "Anouncing main server to: " << inet_ntoa(userAddr.sin_addr) << ":" << ntohs(userAddr.sin_port) << std::endl;
+                    sendto(serverSocket, message.c_str(), message.size(), 0, (struct sockaddr *)&userAddr, sizeof(userAddr));
+                }
             }
+        
 
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
@@ -779,8 +814,11 @@ void UDPServer::processPingMessage(sockaddr_in clientAddress)
     }
     if (!alreadyIn)
     {
+        std::cout << "Adding server to list: " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
         otherServers.push_back(clientAddress);
     }
+    printOtherServers(otherServers);
+    
 }
 
 void UDPServer::processPacket_server()
@@ -1088,7 +1126,7 @@ std::pair<int, std::string> UDPServer::startElection(std::vector<std::pair<std::
         address.sin_family = AF_INET;
         address.sin_port = htons(server.second);
         inet_pton(AF_INET, server.first.c_str(), &(address.sin_addr));
-
+        std::cout << "Sending election request to: " << inet_ntoa(address.sin_addr) << ":" << ntohs(address.sin_port) << std::endl;
         sendto(this->serverSocket, toSend.c_str(), BUFFER_SIZE, 0, (struct sockaddr *)&server, sizeof(server));
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
@@ -1108,9 +1146,11 @@ void UDPServer::sendElectionResult(int port, std::string ip)
     }
 }
 
+
 void UDPServer::electionMainServer()
 {
     std::pair<int, std::string> elect; 
+    printOtherServers(otherServers);
     //      TODO: returns a vector of that contains the address of the server with higher ID than the current server
     auto other_server_addr = getHigherIds(otherServers);
     
@@ -1152,7 +1192,7 @@ void UDPServer::sendBackupPacket()
             }
             // auto temp = serializeDatabase();
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
 }
 
@@ -1160,6 +1200,8 @@ std::queue<std::string> UDPServer::serializeDatabase()
 {
     std::queue<std::string> serializedDatabase;
     serializedDatabase.push("Backup/");
+    std::cout << "Serializing otherServers" << std::endl;
+    printOtherServers(otherServers);
     for (sockaddr_in &server : otherServers)
     {
         std::string serverIp = inet_ntoa(server.sin_addr);
@@ -1196,7 +1238,8 @@ std::queue<std::string> UDPServer::serializeDatabase()
             serializeData = serializeData + ":";
         }
         serializedDatabase.push(serializeData);
-        std::cout << serializeData;
+        
+        //std::cout << serializeData;
     }
 
     /*while (!serializedDatabase.empty())
