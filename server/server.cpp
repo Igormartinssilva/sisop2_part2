@@ -433,6 +433,12 @@ void UDPServer::processLogin()
             std::string username = pkt.second;
 
             int id = usersList.createSession(username);
+            // Varrer connectedUsers para verificar se o usuário já tem duas sessões está conectadas
+            if (connectedUsers.find(id) != connectedUsers.end() && connectedUsers[id].size() >= 2)
+            {
+                std::cout << "Usuário " << username << " já tem duas sessões conectadas" << std::endl;
+                id = -1;
+            }
             std::string replyMessage = std::string("ACK_LOG,") + std::to_string(id) + std::string(",") + username.c_str() + std::string(",");
 
             if (id != -1)
@@ -769,7 +775,7 @@ void UDPServer::Ping()
     {
         if (!isMainServer)
         {
-            int maxAttempts = 5;
+            int maxAttempts = 500;
             sockaddr_in receivedPing;
             struct sockaddr_in mainServerAddress;
             memset(&mainServerAddress, 0, sizeof(mainServerAddress));
@@ -783,7 +789,7 @@ void UDPServer::Ping()
                 sendto(serverSocket, "Ping", BUFFER_SIZE, 0, (struct sockaddr *)&mainServerAddress, sizeof(mainServerAddress));
                 // std::cout << "Sent ping message to: " << inet_ntoa(mainServerAddress.sin_addr) << ":" << ntohs(mainServerAddress.sin_port) << std::endl;
                 auto startTime = std::chrono::steady_clock::now();
-                const auto waitDuration = std::chrono::milliseconds(100);
+                const auto waitDuration = std::chrono::milliseconds(1);
                 while (std::chrono::steady_clock::now() - startTime < waitDuration)
                 {
                     // Wait for the specified duration
@@ -1225,7 +1231,7 @@ void UDPServer::processBackup(const std::string &packet)
     
     
     std::getline(iss, token, '/');
-    std::cout << "TOKEN: " << token << std::endl;
+    //std::cout << "TOKEN: " << token << std::endl;
 
     std::istringstream tokenstream(token);
 
@@ -1236,12 +1242,12 @@ void UDPServer::processBackup(const std::string &packet)
         std::istringstream userStream(token);
         std::string userToken;
 
-        std::cout << "Token: " << token << std::endl;
+        //std::cout << "Token: " << token << std::endl;
 
         if (std::getline(userStream, userToken, '=')) {
             std::istringstream sessionStream(userToken);
             
-            std::cout << "userToken: " << userToken << std::endl;
+            //std::cout << "userToken: " << userToken << std::endl;
 
             int userId = std::stoi(userToken);
             std::vector<sockaddr_in> connectedSessions;
@@ -1259,7 +1265,7 @@ void UDPServer::processBackup(const std::string &packet)
             connectedUsers[userId] = connectedSessions;
         }
     }
-    printConnectedUsers();
+    //printConnectedUsers();
 
     otherServers = otherServersTemp;
     msgToSendBuffer = tempBufferMsg;
@@ -1333,11 +1339,11 @@ void UDPServer::electionMainServer()
     // mainServerIP = getIPAddress();
     std::pair<int, std::string> elect;
 
-    std::cout << "chega aqui" << std::endl;
+    //std::cout << "chega aqui" << std::endl;
     // printOtherServers(otherServers);
     //       TODO: returns a vector of that contains the address of the server with higher ID than the current server
     auto ip = this->getIPAddress();
-    std::cout << "ip: " << ip << std::endl;
+    //std::cout << "ip: " << ip << std::endl;
     auto addr = this->toSockaddr(this->myServerPort, ip);
     
     this->greatestResponsePort = myServerPort;
@@ -1348,21 +1354,21 @@ void UDPServer::electionMainServer()
     //      TODO: create a function that sends a message to all server with ID higher than this->serverId
 
     // startElection(other_server_addr);
-    std::cout << "Saiu do start election" << std::endl;
+    //std::cout << "Saiu do start election" << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
     if ((mainServerIP == getIPAddress() || mainServerIP == "127.0.0.1") && mainServerPort == myServerPort)
     {
         isMainServer = true;
-        std::cout << "became main server through its own election" << std::endl;
+        //std::cout << "became main server through its own election" << std::endl;
         // sendElectionResult(mainServerPort, mainServerIP);
     }
     else
     {
-        std::cout << "Elected" << mainServerIP << ":" << mainServerPort << std::endl;
+        //std::cout << "Elected" << mainServerIP << ":" << mainServerPort << std::endl;
         isMainServer = false;
     }
-    printOtherServers(otherServers);
+    //printOtherServers(otherServers);
     //      TODO: create a function that sends the winner of the election to all of the servers active
 }
 
