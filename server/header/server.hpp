@@ -99,6 +99,7 @@ private:
     std::queue<sockaddr_in> pingQueue;
     std::queue<std::pair<const sockaddr_in&, const std::string>> processingBuffer;
     std::queue<std::pair<const sockaddr_in&, const std::string>> sendBuffer;
+    std::queue<twt::Message> messageBuffer;
     std::string mainServerIP;
     int mainServerPort;
     std::string serverId;
@@ -110,8 +111,7 @@ private:
     std::vector<std::pair<std::string, int>> getHigherIds(std::vector<sockaddr_in>& otherServers, std::string cmp_id);
     
     std::deque<PacketInfo> packetBuffer;
-    std::unordered_map<int, std::queue<twt::Message>> userMessageBuffer, msgToSendBuffer;  // User ID -> Queue of stored messages
-    std::queue<twt::Message> messageBuffer; // Messages of the tr
+    std::unordered_map<int, std::queue<twt::Message>> userMessageBuffer;  // User ID -> Queue of stored messages
     std::queue<std::pair<std::pair<int, std::pair<in_addr_t, in_port_t>>, sockaddr_in>> electionQueue;
     std::queue<std::pair<const sockaddr_in&, const std::string&>> loginBuffer;
     std::map<std::pair<int, std::pair<in_addr_t, in_port_t>>, sockaddr_in> pingSet;

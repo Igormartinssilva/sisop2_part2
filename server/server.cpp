@@ -7,6 +7,8 @@
 #include "../common/header/utils.hpp"
 
 std::unordered_map<int, std::vector<sockaddr_in>> connectedUsers; // User ID -> Set of connected sessions
+std::unordered_map<int, std::queue<twt::Message>> msgToSendBuffer;  // User ID -> Queue of stored messages
+
 bool isMainServer;
 void printConnectedUsers()
 {
@@ -847,6 +849,7 @@ void UDPServer::processPacket_server()
             if (packet.find("Backup") != std::string::npos && !isMainServer)
             {
                 // std::cout << "Recived Backup packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
+                //std::cout << "Received Backup packet: " << packet << std::endl;
                 processBackup(packet);
             }
             else if (packet == "Ping")
@@ -1047,6 +1050,24 @@ std::vector<std::pair<std::string, int>> UDPServer::getHigherIds(std::vector<soc
     return higherIds;
 }
 
+std::string sockaddr_inToString(const sockaddr_in& addr) {
+    std::string ip = inet_ntoa(addr.sin_addr);
+    int port = ntohs(addr.sin_port);
+    return ip + ":" + std::to_string(port);
+}
+
+// Function to convert a string representation to sockaddr_in
+sockaddr_in stringToSockaddr_in(const std::string& str) {
+    sockaddr_in addr;
+    size_t pos = str.find(':');
+    std::string ip = str.substr(0, pos);
+    int port = std::stoi(str.substr(pos + 1));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    inet_pton(AF_INET, ip.c_str(), &addr.sin_addr);
+    return addr;
+}
+
 void UDPServer::processBackup(const std::string &packet)
 {
     std::istringstream iss(packet);
@@ -1110,33 +1131,59 @@ void UDPServer::processBackup(const std::string &packet)
 
     // 3rd part: Queue with (uint16, int, string)
     std::getline(iss, token, '/');
-    std::istringstream queueStream(token);
-    std::queue<twt::Message> messageBufferTemp;
-    while (std::getline(queueStream, token, ';'))
+    std::istringstream mapStream(token);
+    std::unordered_map<int, std::queue<twt::Message>> tempBufferMsg;
+    while(std::getline(mapStream, token, ':'))
     {
-        uint16_t param1;
-        int param2;
-        std::string param3;
-        std::string param4;
-        twt::Message tempMessage;
-        twt::User tempUser;
-        std::istringstream tupleStream(token);
-        std::getline(tupleStream, token, ',');
-        std::istringstream(token) >> param1;
-        std::getline(tupleStream, token, ',');
-        std::istringstream(token) >> param2;
-        std::getline(tupleStream, token, ',');
-        std::istringstream(token) >> param3;
-        std::getline(tupleStream, param4, ',');
-        tempUser.userId = param2;
-        tempUser.username = param3;
-        tempMessage.timestamp = param1;
-        tempMessage.sender = tempUser;
-        tempMessage.content = param4;
-        messageBufferTemp.push(tempMessage);
-        // std::cout << "3rd: (" << param1 << ", " << param2 << ", " << param3 << ", "<< param4 <<")" << std::endl;
-        // queue.push(std::make_tuple(param1, param2, param3));
+        int userId;
+        std::istringstream userIdStream(token);
+        std::getline(userIdStream, token, ',');
+        std::istringstream(token) >> userId;
+
+        std::getline(userIdStream, token, ';');
+        std::istringstream queueStream(token);
+        std::queue<twt::Message> messageBufferTemp;
+
+        while (std::getline(queueStream, token, ';'))
+        {
+            uint16_t param1;
+            int param2;
+            std::string param3;
+            std::string param4;
+            twt::Message tempMessage;
+            twt::User tempUser;
+            std::istringstream tupleStream(token);
+            std::getline(tupleStream, token, ',');
+            std::istringstream(token) >> param1;
+            std::getline(tupleStream, token, ',');
+            std::istringstream(token) >> param2;
+            std::getline(tupleStream, token, ',');
+            std::istringstream(token) >> param3;
+            std::getline(tupleStream, param4, ',');
+            tempUser.userId = param2;
+            tempUser.username = param3;
+            tempMessage.timestamp = param1;
+            tempMessage.sender = tempUser;
+            tempMessage.content = param4;
+            messageBufferTemp.push(tempMessage);
+            // std::cout << "3rd: (" << param1 << ", " << param2 << ", " << param3 << ", "<< param4 <<")" << std::endl;
+            // queue.push(std::make_tuple(param1, param2, param3));
+        }
+
+        tempBufferMsg.insert(std::make_pair(userId, messageBufferTemp));
     }
+
+    /*for(const auto &entry : tempBufferMsg)
+    {
+        std::cout << "User ID: " << entry.first << std::endl;
+        std::queue<twt::Message> tempQueue = entry.second;
+        while(!tempQueue.empty())
+        {
+            twt::Message message = tempQueue.front();
+            std::cout << "Timestamp: " << message.timestamp << " Sender: " << message.sender.userId << " " << message.sender.username << " Content: " << message.content << std::endl;
+            tempQueue.pop();
+        }
+    }*/
     // std::cout << "3rd: Queue Size: " << queue.size() << std::endl;
 
     std::getline(iss, token, '/');
@@ -1173,10 +1220,33 @@ void UDPServer::processBackup(const std::string &packet)
         std::cout << " UserID: " << tempId << std::endl;*/
         userVectorTemp.push_back(tempUser);
     }
+    
+    /*
+    std::getline(iss, token, '/');
+
+    connectedUsers.clear();
+
+    while (std::getline(iss, token, ';')) {
+        std::istringstream userStream(token);
+        std::string userToken;
+
+        if (std::getline(userStream, userToken, '=')) {
+            int userId = std::stoi(userToken);
+            std::vector<sockaddr_in> connectedSessions;
+
+            while (std::getline(userStream, userToken, ',')) {
+                connectedSessions.push_back(stringToSockaddr_in(userToken));
+            }
+
+            connectedUsers[userId] = connectedSessions;
+        }
+    }
+    printConnectedUsers();*/
 
     otherServers = otherServersTemp;
-    messageBuffer = messageBufferTemp;
+    msgToSendBuffer = tempBufferMsg;
     write_file(DATABASE_NAME, userVectorTemp);
+    
     /*for (const sockaddr_in &addr : otherServersTemp)
     {
         char ipStr[INET_ADDRSTRLEN];
@@ -1199,6 +1269,8 @@ void UDPServer::processBackup(const std::string &packet)
             std::cout << " " << i;
         std::cout << " UserID: " << user.user.userId << std::endl;
     }*/
+
+    
 }
 
 void UDPServer::startElection(std::vector<std::pair<std::string, int>> serversToSend)
@@ -1322,18 +1394,32 @@ std::queue<std::string> UDPServer::serializeDatabase()
     }
 
     serializedDatabase.push("/");
-    std::queue<twt::Message> tempMessageBuffer = messageBuffer;
-    while (!tempMessageBuffer.empty())
-    {
-        twt::Message message = tempMessageBuffer.front();
-        std::string serializedData = std::to_string(message.timestamp) + "," + std::to_string(message.sender.userId) + "," + message.sender.username + "," + message.content;
-        tempMessageBuffer.pop();
-        if (!tempMessageBuffer.empty())
+    std::unordered_map<int, std::queue<twt::Message>> msgToSendBufferTemp = msgToSendBuffer;
+    long unsigned int contador = 1;
+    for(auto &user : msgToSendBufferTemp){
+        std::string serializedData = std::to_string(user.first) + ",";
+        std::queue<twt::Message> tempMessageBuffer = user.second;
+        
+        while (!tempMessageBuffer.empty())
         {
-            serializedData = serializedData + ";";
+            twt::Message message = tempMessageBuffer.front();
+            serializedData += std::to_string(message.timestamp) + "," + std::to_string(message.sender.userId) + "," + message.sender.username + "," + message.content;
+            tempMessageBuffer.pop();
+
+            if(!tempMessageBuffer.empty()){
+                serializedData += ";";
+            }
+
         }
+
+        if(contador != msgToSendBufferTemp.size()){
+            serializedData += ":";
+        }
+
         serializedDatabase.push(serializedData);
+        contador++;
     }
+
     serializedDatabase.push("/");
     std::vector<twt::UserInfo> tempVec = read_file(DATABASE_NAME);
     for (twt::UserInfo &user : tempVec)
@@ -1346,7 +1432,36 @@ std::queue<std::string> UDPServer::serializeDatabase()
         serializedDatabase.push(serializeData);
 
         // std::cout << serializeData;
+    }  
+
+    serializedDatabase.push("/");
+    std::string serializedData;
+    for (auto users : connectedUsers){
+        int userId = users.first;
+        std::vector<sockaddr_in> connectedSessions = users.second;
+        serializedData += std::to_string(userId);
+        serializedData.push_back('=');
+        for (auto session : connectedSessions){
+            serializedData += inet_ntoa(session.sin_addr);
+            serializedData.push_back(':');
+            serializedData += std::to_string(session.sin_port);
+            serializedData.push_back(',');
+        }
+        if (!connectedSessions.empty()) {
+            // Remove the trailing comma ','
+            serializedData.pop_back();
+        }
+        serializedData.push_back(';');
     }
+    if (!connectedUsers.empty()) {
+        // Remove the trailing semicolon ';'
+        serializedData.pop_back();
+    }
+    std::cout << serializedData << std::endl;
+    serializedDatabase.push(serializedData);
+
+    
+
 
     /*while (!serializedDatabase.empty())
     {
@@ -1366,6 +1481,8 @@ int generateRandomNumber()
     // Gere e retorne o número aleatório
     return distribution(gen);
 }
+
+
 
 std::string UDPServer::getIPAddress()
 {
