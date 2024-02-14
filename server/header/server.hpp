@@ -93,6 +93,7 @@ private:
     void processElectionRequest(const std::string& input, const sockaddr_in& clientaddr);
     void processElectionRequestAck(const std::string &packet, const sockaddr_in& clientaddr);
 
+    void removeHighestIdServer(std::vector<sockaddr_in>& otherServers);
     std::vector<sockaddr_in> otherServers; 
     int serverSocket;
     std::queue<sockaddr_in> pingQueue;
@@ -100,13 +101,13 @@ private:
     std::queue<std::pair<const sockaddr_in&, const std::string>> sendBuffer;
     std::string mainServerIP;
     int mainServerPort;
-    int serverId;
+    std::string serverId;
     
     void electionMainServer(); 
     //std::vector<std::pair<int, std::string>> getHigherIds();
-    std::pair<int, std::string> startElection(std::vector<std::pair<std::string, int>> serversToSend);
+    void startElection(std::vector<std::pair<std::string, int>> serversToSend);
     void sendElectionResult(int port, std::string ip);
-    std::vector<std::pair<std::string, int>> getHigherIds(const std::vector<sockaddr_in>& otherServers);
+    std::vector<std::pair<std::string, int>> getHigherIds(std::vector<sockaddr_in>& otherServers, std::string cmp_id);
     
     std::deque<PacketInfo> packetBuffer;
     std::unordered_map<int, std::queue<twt::Message>> userMessageBuffer, msgToSendBuffer;  // User ID -> Queue of stored messages

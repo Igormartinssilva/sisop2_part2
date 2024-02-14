@@ -51,3 +51,8 @@ std::vector<std::string> splitString(const std::string& input) {
     
     return result;
 }
+
+//luis?kkkkkkk foi mal, discord enquanto espero minha janta fica pronta?
+size_t hashIPPort(const std::string& id) {
+    return std::hash<std::string>{}(id);
+}

@@ -3,6 +3,7 @@
 #include <string>
 #include <random>
 #include <ctime>
+#include <functional>
 
 
 constexpr char RED[] = "\033[1;31m";
@@ -18,3 +19,4 @@ uint16_t getTimeStamp();
 bool nameConsistency( std::string username);
 void clearScreen();
 void pressEnterToContinue();
+size_t hashIPPort(const std::string& id);
