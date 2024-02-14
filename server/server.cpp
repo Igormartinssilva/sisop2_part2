@@ -500,7 +500,7 @@ void UDPServer::sendBufferedMessages(int userId)
                 for (const sockaddr_in &userAddr : connectedUsers[userId])
                 {
                     std::cout << "\n> Sending message: \"" << message.content.c_str() << "\" to user @" << usersList.getUsername(userId) << "(id " << std::to_string(userId) << ")"
-                              << "With port " << userAddr.sin_port << " from user @" << message.sender.username << " (id " << message.sender.userId << ")" << std::endl;
+<< "With port " << userAddr.sin_port << " from user @" << message.sender.username << " (id " << message.sender.userId << ")" << std::endl;
                     std::string str(
                         std::to_string(message.timestamp) + ',' +
                         message.sender.username + ',' +
@@ -529,6 +529,7 @@ void UDPServer::broadcastMessage(int receiverId)
         {
             for (const sockaddr_in &userAddr : connectedUsers[receiverId])
             {
+                std::cout << "ip: " << inet_ntoa(userAddr.sin_addr) << " port: " << ntohs(userAddr.sin_port) << std::endl;
                 std::cout << "\n> Sending message: \"" << message.content.c_str() << "\" to user @" << usersList.getUsername(receiverId) << "(id " << std::to_string(receiverId) << ")"
                           << " from user @" << message.sender.username << " (id " << message.sender.userId << ")" << std::endl;
                 std::string str(
@@ -768,7 +769,7 @@ void UDPServer::Ping()
     {
         if (!isMainServer)
         {
-            int maxAttempts = 500;
+            int maxAttempts = 5;
             sockaddr_in receivedPing;
             struct sockaddr_in mainServerAddress;
             memset(&mainServerAddress, 0, sizeof(mainServerAddress));
@@ -782,7 +783,7 @@ void UDPServer::Ping()
                 sendto(serverSocket, "Ping", BUFFER_SIZE, 0, (struct sockaddr *)&mainServerAddress, sizeof(mainServerAddress));
                 // std::cout << "Sent ping message to: " << inet_ntoa(mainServerAddress.sin_addr) << ":" << ntohs(mainServerAddress.sin_port) << std::endl;
                 auto startTime = std::chrono::steady_clock::now();
-                const auto waitDuration = std::chrono::milliseconds(1);
+                const auto waitDuration = std::chrono::milliseconds(100);
                 while (std::chrono::steady_clock::now() - startTime < waitDuration)
                 {
                     // Wait for the specified duration
@@ -790,9 +791,10 @@ void UDPServer::Ping()
                 // std::cout << "Waited for reply ping message from: " << inet_ntoa(mainServerAddress.sin_addr) << ":" << ntohs(mainServerAddress.sin_port) << std::endl;
                 if (!pingQueue.empty())
                 {
+                    std::string localhost = "127.0.0.1";
                     receivedPing = pingQueue.front();
                     pingQueue.pop();
-                    if (receivedPing.sin_port == mainServerAddress.sin_port && receivedPing.sin_addr.s_addr == mainServerAddress.sin_addr.s_addr)
+                    if (receivedPing.sin_port == mainServerAddress.sin_port && (inet_ntoa(receivedPing.sin_addr) == localhost || receivedPing.sin_addr.s_addr == mainServerAddress.sin_addr.s_addr))
                     {
                         isMainServerUp = true;
                         // std::cout << "Main server is up" << std::endl;
@@ -858,7 +860,7 @@ void UDPServer::processPacket_server()
             }
             else if (packet == "Reply Ping")
             {
-                // std::cout << "Received Reply Ping packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
+                //std::cout << "Received Reply Ping packet from " << inet_ntoa(clientAddress.sin_addr) << ":" << ntohs(clientAddress.sin_port) << std::endl;
                 pingQueue.push(clientAddress);
             }
             else if (packet.find("Election Result"))
@@ -1221,27 +1223,43 @@ void UDPServer::processBackup(const std::string &packet)
         userVectorTemp.push_back(tempUser);
     }
     
-    /*
+    
     std::getline(iss, token, '/');
+    std::cout << "TOKEN: " << token << std::endl;
+
+    std::istringstream tokenstream(token);
 
     connectedUsers.clear();
 
-    while (std::getline(iss, token, ';')) {
+    // 0=0.0.0.0:0000,0.0.0.1:0000;1=0.0.0.0:0000,0.0.0.1:0000;
+    while (std::getline(tokenstream, token, ';')) {
         std::istringstream userStream(token);
         std::string userToken;
 
+        std::cout << "Token: " << token << std::endl;
+
         if (std::getline(userStream, userToken, '=')) {
+            std::istringstream sessionStream(userToken);
+            
+            std::cout << "userToken: " << userToken << std::endl;
+
             int userId = std::stoi(userToken);
             std::vector<sockaddr_in> connectedSessions;
 
             while (std::getline(userStream, userToken, ',')) {
-                connectedSessions.push_back(stringToSockaddr_in(userToken));
+                std::cout << "userTokenInside: " << userToken << std::endl;
+                sockaddr_in addr = stringToSockaddr_in(userToken);
+                std::string ip = inet_ntoa(addr.sin_addr);
+                int port = ntohs(addr.sin_port);
+                std::cout << "IP: " << ip << std::endl;
+                std::cout << "Port: " << port << std::endl;
+                connectedSessions.push_back(addr);
             }
 
             connectedUsers[userId] = connectedSessions;
         }
     }
-    printConnectedUsers();*/
+    printConnectedUsers();
 
     otherServers = otherServersTemp;
     msgToSendBuffer = tempBufferMsg;
@@ -1333,7 +1351,7 @@ void UDPServer::electionMainServer()
     std::cout << "Saiu do start election" << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
-    if (mainServerIP == getIPAddress() && mainServerPort == myServerPort)
+    if ((mainServerIP == getIPAddress() || mainServerIP == "127.0.0.1") && mainServerPort == myServerPort)
     {
         isMainServer = true;
         std::cout << "became main server through its own election" << std::endl;
@@ -1444,7 +1462,7 @@ std::queue<std::string> UDPServer::serializeDatabase()
         for (auto session : connectedSessions){
             serializedData += inet_ntoa(session.sin_addr);
             serializedData.push_back(':');
-            serializedData += std::to_string(session.sin_port);
+            serializedData += std::to_string(ntohs(session.sin_port));
             serializedData.push_back(',');
         }
         if (!connectedSessions.empty()) {
