@@ -58,7 +58,7 @@ UDPServer::UDPServer(int port, int mainServerPort_param, std::string mainServerI
 
     if (mainServerIP_param == "")
     {
-        mainServerIP = "172.0.0.1"; //"172.28.121.208" // RETIRAR ESSA LINHA POSTERIORMENTE
+        mainServerIP = getIPAddress(); //"172.28.121.208" // RETIRAR ESSA LINHA POSTERIORMENTE
         isMainServer = true;        // RETIRAR ESSA LINHA POSTERIORMENTE
         port = mainServerPort_param;
     }
