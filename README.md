@@ -27,7 +27,7 @@ Y is a local network messaging application that enables users to send messages t
     ```bash
     ./start_server.sh PORT
     ```
-2.1 Se for iniciar servidores de backup, em outro terminal
+2.1 If you want to start another server as a backup 
 ```bash
     ./start_server.sh PORT SERVER_IP_OF_MAIN
 ```
