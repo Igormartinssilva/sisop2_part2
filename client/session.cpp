@@ -104,7 +104,7 @@ void Session::processBuffer()
 
                 // Chamar a função setServer
                 //std::cout << "Main server found at " << ip << ":" << port << std::endl;
-                //client.setMainServer(ip.c_str(), port);
+                client.setMainServer(ip.c_str(), port);
             }
         }
             else if (strcmp(packet.c_str(), "") != 0)

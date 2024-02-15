@@ -24,7 +24,7 @@ void Client::setMainServer(std::string ip, int port) {
 
     serv_addr = mainServerAddress;
     
-    std::cout << "Main server set to " << ip << ":" << port << std::endl;
+    //std::cout << "Main server set to " << ip << ":" << port << std::endl;
 }
 
 void Client::setServer(const char *hostname) {
