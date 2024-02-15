@@ -310,6 +310,7 @@ void UDPServer::processPacket()
                     returnMessage = "ACK_MSG,Message request received\nSender ID: " + std::to_string(payload.first) + "\nMessage: " + payload.second + "\n";
                     // UDPServer::sendPacketWithRetransmission( clientAddress, returnMessage);
 
+                    std::cout << "> Message request: \n\t@" << GREEN << usersList.getUsername(payload.first) << RESET << " just post at ("<< timestamp <<"): \n\t\t> \"" << PURPLE << payload.second << RESET << "\"" << std::endl << std::endl;
                     sendto(serverSocket, returnMessage.c_str(), BUFFER_SIZE, 0, (struct sockaddr *)&clientAddress, sizeof(clientAddress));
                     break;
                 }
@@ -319,7 +320,7 @@ void UDPServer::processPacket()
                     int followerId = payload.first;
                     std::string usernameToFollow = payload.second;
 
-                    std::cout << "User " << usersList.getUsername(followerId) << " is trying to follow " << usernameToFollow << std::endl;
+                    std::cout << "> Follow request: \n\t@" << GREEN << usersList.getUsername(followerId) << RESET << " is trying to follow @" << GREEN << usernameToFollow << RESET << std::endl << std::endl;
 
                     int follewedId = usersList.getUserId(usernameToFollow);
                     if (follewedId == -1)
@@ -342,7 +343,7 @@ void UDPServer::processPacket()
                         returnMessage = std::string("ACK_FLW,You are now following ") + usernameToFollow + std::string(".\n");
                     }
 
-                    std::cout << returnMessage << std::endl;
+                    // std::cout << returnMessage << std::endl;
                     // UDPServer::sendPacketWithRetransmission( clientAddress, returnMessage);
                     sendto(serverSocket, returnMessage.c_str(), BUFFER_SIZE, 0, (struct sockaddr *)&clientAddress, sizeof(clientAddress));
                     break;
@@ -358,7 +359,7 @@ void UDPServer::processPacket()
                     int accountId = twt::deserializeExitPayload(pack.payload);
                     handleLogout(clientAddress, accountId);
                     returnMessage = "ACK_EXT,Exit request received\nUserId: " + std::to_string(accountId) + "\n";
-                    std::cout << returnMessage;
+                    // std::cout << returnMessage;
                     // UDPServer::sendPacketWithRetransmission( clientAddress, returnMessage);
                     sendto(serverSocket, returnMessage.c_str(), BUFFER_SIZE, 0, (struct sockaddr *)&clientAddress, sizeof(clientAddress));
 
@@ -412,9 +413,8 @@ void UDPServer::handleLogout(const sockaddr_in &clientAddress, int id)
     if (pos != sessions.end())
     {
         sessions.erase(pos);
-        std::cout << "Closing user session: " << PURPLE << id << RESET << std::endl;
         std::string clientIPAddress = inet_ntoa(clientAddress.sin_addr);
-        std::cout << "Endereço IP do cliente: " << PURPLE << clientIPAddress << RESET << std::endl;
+        std::cout << "> Closing user session: \n\t@" << GREEN << usersList.getUsername(id) << RESET << " (" << id << ")" << std::endl << "\taddress: " << PURPLE << clientIPAddress << RESET << std::endl << std::endl;
 
         // Reseta o último número de sequência para 0 quando o cliente faz logout
         resetSequenceNumber(clientAddress);
@@ -436,7 +436,7 @@ void UDPServer::processLogin()
             // Varrer connectedUsers para verificar se o usuário já tem duas sessões está conectadas
             if (connectedUsers.find(id) != connectedUsers.end() && connectedUsers[id].size() >= 2)
             {
-                std::cout << "Usuário " << username << " já tem duas sessões conectadas" << std::endl;
+                std::cout << "Usuário " << username << " já tem " << MAX_SESSIONS << " sessões conectadas" << std::endl;
                 id = -1;
             }
             std::string replyMessage = std::string("ACK_LOG,") + std::to_string(id) + std::string(",") + username.c_str() + std::string(",");
@@ -452,13 +452,13 @@ void UDPServer::processLogin()
             {
                 replyMessage = replyMessage + std::string(RED) + "Usuario @" + username + " nao pode se conectar" + RESET;
             }
-            std::cout << "sending ack for login: " << username << " id: " << id << std::endl;
+            // std::cout << "sending ack for login: " << username << " id: " << id << std::endl;
             sendto(serverSocket, replyMessage.c_str(), BUFFER_SIZE, 0, (struct sockaddr *)&clientAddress, sizeof(clientAddress));
             // Obter o endereço IP do cliente como uma string
             std::string clientIPAddress = inet_ntoa(clientAddress.sin_addr);
             sendBufferedMessages(id);
             // Imprimir o endereço IP do cliente na tela
-            std::cout << "Endereço IP do cliente: " << clientIPAddress << std::endl;
+            std::cout << "\tAddress: " << PURPLE << clientIPAddress << RESET << std::endl << std::endl;
             loginBuffer.pop();
         }
         else
@@ -505,8 +505,8 @@ void UDPServer::sendBufferedMessages(int userId)
                 twt::Message message = it->second.front();
                 for (const sockaddr_in &userAddr : connectedUsers[userId])
                 {
-                    std::cout << "\n> Sending message: \"" << message.content.c_str() << "\" to user @" << usersList.getUsername(userId) << "(id " << std::to_string(userId) << ")"
-<< "With port " << userAddr.sin_port << " from user @" << message.sender.username << " (id " << message.sender.userId << ")" << std::endl;
+                    std::cout << "\n> Sending message: \"" << message.content.c_str() << "\" to user @" << GREEN << usersList.getUsername(userId) << RESET << "(id " << std::to_string(userId) << ")"
+<< "With port " << userAddr.sin_port << " from user @" << GREEN << message.sender.username << RESET << " (id " << message.sender.userId << ")" << std::endl;
                     std::string str(
                         std::to_string(message.timestamp) + ',' +
                         message.sender.username + ',' +
@@ -536,8 +536,8 @@ void UDPServer::broadcastMessage(int receiverId)
             for (const sockaddr_in &userAddr : connectedUsers[receiverId])
             {
                 std::cout << "ip: " << inet_ntoa(userAddr.sin_addr) << " port: " << ntohs(userAddr.sin_port) << std::endl;
-                std::cout << "\n> Sending message: \"" << message.content.c_str() << "\" to user @" << usersList.getUsername(receiverId) << "(id " << std::to_string(receiverId) << ")"
-                          << " from user @" << message.sender.username << " (id " << message.sender.userId << ")" << std::endl;
+                std::cout << "\n> Sending message: \"" << message.content.c_str() << "\" to user @" << GREEN << usersList.getUsername(receiverId) << RESET << "(id " << std::to_string(receiverId) << ")"
+                          << " from user @" << GREEN << message.sender.username << RESET << " (id " << message.sender.userId << ")" << std::endl;
                 std::string str(
                     std::to_string(message.timestamp) + ',' +
                     message.sender.username + ',' +
@@ -550,7 +550,7 @@ void UDPServer::broadcastMessage(int receiverId)
         else
         {
             // Se o usuário não estiver conectado, salve o userId e o message.sender.username em msgToSendBuffer
-            std::cout << "User " << usersList.getUsername(receiverId) << " is not connected. Saving message in buffer." << std::endl;
+            std::cout << "User @" << GREEN << usersList.getUsername(receiverId) << RESET  << " is not connected. Saving message in buffer." << std::endl;
             msgToSendBuffer[receiverId].push(message);
         }
         userMessageBuffer[receiverId].pop();
@@ -920,7 +920,7 @@ void UDPServer::processElectionResult(const std::string &packet)
     if (electionServerId == this->serverId)
     {
         isMainServer = true;
-        std::cout << "became main server through other\'s election" << std::endl;
+        //std::cout << "became main server through other\'s election" << std::endl;
     }
 }
 
@@ -939,7 +939,7 @@ void UDPServer::processElectionRequestAck(const std::string &packet, const socka
     // if (calcId(a) > calcId(b))
 
     // separação do ip e porta do pacote recebido
-    std::cout << "packet : " << packet << std::endl;
+    // std::cout << "packet : " << packet << std::endl;
     std::vector<std::string> tokens = splitString(packet);
     if (tokens.size() < 2)
         return;
@@ -1046,13 +1046,13 @@ std::vector<std::pair<std::string, int>> UDPServer::getHigherIds(std::vector<soc
         }
         else
         {
-            std::cout << "Achou o main" << std::endl;
+            //std::cout << "Achou o main" << std::endl;
         }
     }
     otherServers = copiedServers;
 
-    std::cout << BLUE << "main port:" << mainServerPort << std::endl;
-    std::cout << GREEN << "main ip:" << mainServerIP << std::endl;
+    //std::cout << BLUE << "main port:" << mainServerPort << std::endl;
+    //std::cout << GREEN << "main ip:" << mainServerIP << std::endl;
     /// FUNÇÂO A SER MOVIDA DE LUGAR
 
     return higherIds;
@@ -1253,12 +1253,12 @@ void UDPServer::processBackup(const std::string &packet)
             std::vector<sockaddr_in> connectedSessions;
 
             while (std::getline(userStream, userToken, ',')) {
-                std::cout << "userTokenInside: " << userToken << std::endl;
+                //std::cout << "userTokenInside: " << userToken << std::endl;
                 sockaddr_in addr = stringToSockaddr_in(userToken);
                 std::string ip = inet_ntoa(addr.sin_addr);
-                int port = ntohs(addr.sin_port);
-                std::cout << "IP: " << ip << std::endl;
-                std::cout << "Port: " << port << std::endl;
+                // int port = ntohs(addr.sin_port);
+                //std::cout << "IP: " << ip << std::endl;
+                //std::cout << "Port: " << port << std::endl;
                 connectedSessions.push_back(addr);
             }
 
@@ -1301,11 +1301,11 @@ void UDPServer::startElection(std::vector<std::pair<std::string, int>> serversTo
 {
     std::pair<int, std::string> result;
     std::string toSend("Request Elect " + this->serverId + ";");
-    std::cout << PURPLE << "ta començando a eleição" << std::endl;
+    //std::cout << PURPLE << "ta començando a eleição" << std::endl;
     this->greatestResponsePort = myServerPort;
     this->greatestResponseIp = getIPAddress();
 
-    std::cout << "servers to send: " << serversToSend.size() << std::endl;
+    // std::cout << "servers to send: " << serversToSend.size() << std::endl;
     for (auto server : serversToSend)
     {
         sockaddr_in address = toSockaddr(server.second, server.first);
@@ -1481,7 +1481,7 @@ std::queue<std::string> UDPServer::serializeDatabase()
         // Remove the trailing semicolon ';'
         serializedData.pop_back();
     }
-    std::cout << serializedData << std::endl;
+    //std::cout << serializedData << std::endl;
     serializedDatabase.push(serializedData);
 
     

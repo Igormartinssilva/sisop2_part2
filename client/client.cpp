@@ -64,7 +64,7 @@ int Client::sendPacket(twt::PacketType type, uint16_t timestamp, const std::stri
         perror("ERROR in sendto");
         std::cerr << "Error code: " << errno << std::endl;
     } 
-    std::cout << "Sent " << n << " bytes to " << buffer << ":" << ntohs(serv_addr.sin_port) << std::endl;
+    // std::cout << "Sent " << n << " bytes to " << buffer << ":" << ntohs(serv_addr.sin_port) << std::endl;
     return n;
 }
 

@@ -192,10 +192,11 @@ int twt:: UsersList::createSession(std::string username) {
 
         if (!users[id].maxSessionsReached()) {
             users[id].createSession();
-            std::cout << "\n> Creating session: " << username << " with ID: " << id << std::endl;
+            std::cout << "> Creating session: " << std::endl << "@" << GREEN << username << RESET << " (ID: " << id << ")" << std::endl;
             return id;
         } else {
-            std::cout << "\n> User " << username << " cannot log in. Max session reached" << std::endl;
+            std::cout << "> Failed on creating session: " << std::endl << "@" << GREEN << username << RESET << " (ID: " << id << ")" << std::endl;
+            std::cout << "\t" << "Max session reached" << std::endl << std::endl;
 
             // Se não for possível criar uma sessão, liberamos o semáforo
             //sem_post(&twt::sessionSemaphore);

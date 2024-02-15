@@ -1,18 +1,18 @@
-okoy;;18
-Dick;18,6,;5
-ClienteB;7,;11
-Igor;13,;17
-GabrielMachado;6,2,;4
-ClienteA;;7
-Luis;6,2,;1
 Silva;;14
+Luis;2,6,;1
+ClienteA;;7
 igor;;6
-Gabriel;14,16,;13
-Gabriel Machado;;3
+Gabriel;16,14,;13
+ClienteC;7,11,;12
 IgorM;;16
-ClienteC;11,7,;12
-TcheBr;13,16,;15
+Gabriel Machado;;3
+TcheBr;16,13,;15
 Pedro;1,;2
-CLienteB;;10
-ClienteD;11,7,;9
 CLienteC;;8
+ClienteD;7,11,;9
+CLienteB;;10
+GabrielMachado;2,6,;4
+Igor;13,;17
+okoy;;18
+Dick;6,18,;5
+ClienteB;7,;11
