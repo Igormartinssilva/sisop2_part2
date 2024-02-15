@@ -25,14 +25,18 @@ Y is a local network messaging application that enables users to send messages t
 2. Start the server:
 
     ```bash
-    ./start_server.sh
+    ./start_server.sh PORT
     ```
+2.1 Se for iniciar servidores de backup, em outro terminal
+```bash
+    ./start_server.sh PORT SERVER_IP_OF_MAIN
+```
 
 3. Start the client on other devices:
 
-    ```bash
-    ./start_client.sh <server_ip_address>
-    ```
+```bash
+ ./start_client.sh <server_ip_address>
+```
 
 ### Possible Errors:
 
